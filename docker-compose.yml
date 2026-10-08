@@ -1,0 +1,50 @@
+x-backend: &backend
+  build: ./backend
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DATABASE_URL: postgresql+psycopg://shepherd:shepherd@db:5432/shepherd
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: shepherd
+      POSTGRES_PASSWORD: shepherd
+      POSTGRES_DB: shepherd
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shepherd -d shepherd"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: apply migrations, then load synthetic seeds (idempotent).
+  migrate:
+    <<: *backend
+    command: sh -c "alembic upgrade head && python -m seeds"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *backend
+    command: python -m app.worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
