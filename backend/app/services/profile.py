@@ -584,7 +584,7 @@ def render_section(draft: ChurchProfileDraft, topic: OnboardingTopic) -> str:
             rules = [
                 f"Per {r.period}: up to {r.normal_max} is normal, "
                 + (
-                    f"{r.normal_max + 1} to {r.warning_above} is noted for the approver, "
+                    f"{_count_range(r.normal_max + 1, r.warning_above)} is noted for the approver, "
                     if r.warning_above > r.normal_max
                     else ""
                 )
@@ -601,7 +601,7 @@ def render_section(draft: ChurchProfileDraft, topic: OnboardingTopic) -> str:
         case T.ROUTING:
             return _lines(
                 [
-                    f"{_finding_label(r.finding).capitalize()}: {' and '.join(r.recipients)}"
+                    f"{_sentence_case(_finding_label(r.finding))}: {' and '.join(r.recipients)}"
                     for r in draft.routing
                 ],
                 "No routing yet.",
@@ -638,6 +638,15 @@ def render_summary(draft: ChurchProfileDraft) -> str:
         for topic in TOPIC_ORDER
         if topic is not T.REVIEW
     )
+
+
+def _count_range(low: int, high: int) -> str:
+    return str(low) if low == high else f"{low} to {high}"
+
+
+def _sentence_case(text: str) -> str:
+    """Upper-case the first letter only (str.capitalize would lower-case "I")."""
+    return text[:1].upper() + text[1:]
 
 
 def _label(topic: OnboardingTopic) -> str:

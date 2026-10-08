@@ -188,10 +188,11 @@ def test_summary_names_weekday_gatherings_and_special_events() -> None:
     assert "Christmas Eve: Thursday 24 December 2026 at 5:00 PM, 90 minutes, special" in summary
     assert "Kids: only the training path, drafted 6 weeks ahead" in summary
     assert (
-        "Per week: up to 1 is normal, 2 to 2 is noted for the approver, more than 2 is a warning."
+        "Per week: up to 1 is normal, 2 is noted for the approver, more than 2 is a warning."
         in summary
     )
     assert "Sarah Collins: Thursday 12:00 PM to 1:00 PM" in summary
+    assert "A name I can't match: scheduler" in summary
 
 
 # ---------------------------------------------------------------------------
