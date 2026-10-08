@@ -27,6 +27,8 @@ from app.domain.profile import (
     RosterSettingIn,
     RosterSettingsReply,
     RoutingReply,
+    SampleReply,
+    SampleSlot,
 )
 from app.services.profile import apply_reply
 
@@ -179,3 +181,32 @@ def run(
         assert not result.problems, (topic, result.problems)
         draft = result.draft
     return draft
+
+
+def slot(
+    day: str, at: str, ministry: str, role: str, count: int, gathering: str | None = None
+) -> SampleSlot:
+    return SampleSlot(
+        date=day,
+        weekday=None,
+        start_time=at,
+        gathering=gathering,
+        ministry=ministry,
+        role=role,
+        people_count=count,
+    )
+
+
+THREE_WEEKS = SampleReply(
+    slots=[
+        *(
+            slot(d, "19:00", "Worship", "Keys", 1)
+            for d in ("2026-09-02", "2026-09-09", "2026-09-16")
+        ),
+        slot("2026-09-06", "09:30", "Kids", "Helper", 2),
+        slot("2026-09-13", "09:30", "Kids", "Helper", 2),
+        slot("2026-09-20", "09:30", "Kids", "Helper", 3),
+        slot("2026-09-24", "18:00", "Worship", "Vocals", 4, gathering="Harvest Night"),
+    ],
+    clarifying_question=None,
+)

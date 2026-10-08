@@ -13,6 +13,8 @@ APP_DIR = Path(__file__).resolve().parents[2] / "app"
 AGENT_ALLOWED_APP_IMPORTS = (
     "app.db.repositories.reads",
     "app.db.repositories.proposals",
+    # The onboarding agent's own working state (draft + topic), not the church record.
+    "app.db.repositories.onboarding",
     "app.domain",
     "app.llm",
     "app.config",

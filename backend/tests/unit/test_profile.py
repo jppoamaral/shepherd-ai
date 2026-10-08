@@ -21,7 +21,6 @@ from app.domain.profile import (
     RolesReply,
     RoutingReply,
     SampleReply,
-    SampleSlot,
 )
 from app.services.profile import (
     TOPIC_ORDER,
@@ -35,11 +34,13 @@ from tests.profile_script import (
     DONE,
     NOT_DONE,
     SCRIPT,
+    THREE_WEEKS,
     T,
     basics,
     gatherings,
     leaders,
     run,
+    slot,
 )
 
 
@@ -194,35 +195,6 @@ def test_summary_names_weekday_gatherings_and_special_events() -> None:
 # ---------------------------------------------------------------------------
 # Sample schedules
 # ---------------------------------------------------------------------------
-
-
-def slot(
-    day: str, at: str, ministry: str, role: str, count: int, gathering: str | None = None
-) -> SampleSlot:
-    return SampleSlot(
-        date=day,
-        weekday=None,
-        start_time=at,
-        gathering=gathering,
-        ministry=ministry,
-        role=role,
-        people_count=count,
-    )
-
-
-THREE_WEEKS = SampleReply(
-    slots=[
-        *(
-            slot(d, "19:00", "Worship", "Keys", 1)
-            for d in ("2026-09-02", "2026-09-09", "2026-09-16")
-        ),
-        slot("2026-09-06", "09:30", "Kids", "Helper", 2),
-        slot("2026-09-13", "09:30", "Kids", "Helper", 2),
-        slot("2026-09-20", "09:30", "Kids", "Helper", 3),
-        slot("2026-09-24", "18:00", "Worship", "Vocals", 4, gathering="Harvest Night"),
-    ],
-    clarifying_question=None,
-)
 
 
 def test_sample_infers_weekly_gatherings_one_offs_and_minimums() -> None:
