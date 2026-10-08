@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api import onboarding, proposals
 from app.api.routes import router
 
 app = FastAPI(
@@ -8,3 +9,5 @@ app = FastAPI(
     description="Shepherd suggests, a person decides.",
 )
 app.include_router(router)
+app.include_router(onboarding.router)
+app.include_router(proposals.router)

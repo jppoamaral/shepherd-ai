@@ -86,8 +86,19 @@ def test_openapi_schema_is_published(client: TestClient) -> None:
     assert "ChurchOut" in schema["components"]["schemas"]
 
 
-def test_api_is_read_only_for_now(client: TestClient) -> None:
-    """M1 exposes no writes; changes arrive later through the approval queue."""
+def test_only_onboarding_and_the_approval_queue_write(client: TestClient) -> None:
+    """Every write goes through onboarding (which only proposes) or ApprovalService."""
     schema = client.get("/openapi.json").json()
-    methods = {m for path in schema["paths"].values() for m in path}
-    assert methods == {"get"}
+    writes = {
+        (method, path)
+        for path, methods in schema["paths"].items()
+        for method in methods
+        if method != "get"
+    }
+    assert writes == {
+        ("post", "/onboarding"),
+        ("post", "/churches/{church_id}/onboarding/{onboarding_id}/messages"),
+        ("post", "/churches/{church_id}/onboarding/{onboarding_id}/sample"),
+        ("post", "/churches/{church_id}/proposals/{proposal_id}/approve"),
+        ("post", "/churches/{church_id}/proposals/{proposal_id}/reject"),
+    }

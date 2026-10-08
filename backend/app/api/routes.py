@@ -1,4 +1,4 @@
-"""Read-only endpoints. Everything under /churches/{church_id} is scoped to that church.
+"""Read-only endpoints and shared API dependencies. Scoped to one church under /churches/{church_id}.
 
 No auth yet (synthetic data, local only). Auth must land before any real church data.
 """

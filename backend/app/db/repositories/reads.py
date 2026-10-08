@@ -21,10 +21,12 @@ from app.db.models import (
     Ministry,
     MinistryLeader,
     Person,
+    Proposal,
     Role,
     RoleMinimum,
     RoleSkill,
 )
+from app.domain.enums import ProposalStatus
 from app.domain.schemas import (
     ChurchOut,
     GatheringOut,
@@ -34,6 +36,7 @@ from app.domain.schemas import (
     MembershipOut,
     MinistryOut,
     PersonOut,
+    ProposalOut,
     RoleMinimumOut,
     RoleOut,
     RoleSkillOut,
@@ -167,6 +170,13 @@ class ChurchReader:
             )
             for p in people
         ]
+
+    def proposals(self, status: ProposalStatus | None = None) -> list[ProposalOut]:
+        query = select(Proposal).where(Proposal.church_id == self.church_id)
+        if status is not None:
+            query = query.where(Proposal.status == status)
+        rows = self.session.scalars(query.order_by(Proposal.created_at.desc())).all()
+        return [ProposalOut.model_validate(p) for p in rows]
 
     def gatherings(self, start: datetime, end: datetime) -> list[GatheringOut]:
         """Gatherings starting in `[start, end)`, with times in the church's time zone."""

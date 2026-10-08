@@ -2,15 +2,19 @@
 
 import uuid
 from datetime import date, datetime, time
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import (
     Experience,
     GatheringKind,
     MembershipStatus,
+    OnboardingStatus,
+    OnboardingTopic,
     Period,
     ProfileStatus,
+    ProposalStatus,
     Recurrence,
     RosterPath,
     Weekday,
@@ -107,3 +111,51 @@ class GatheringOut(Schema):
     kind: GatheringKind
     start_at: datetime  # in the church's time zone, with offset
     end_at: datetime
+
+
+class ProposalOut(Schema):
+    id: uuid.UUID
+    type: str
+    status: ProposalStatus
+    created_by_agent: str
+    created_at: datetime
+    decided_by_person_id: uuid.UUID | None
+    decided_at: datetime | None
+    payload: dict[str, Any]
+
+
+class OnboardingStart(BaseModel):
+    church_name: str = Field(min_length=1, max_length=200)
+    admin_name: str = Field(min_length=1, max_length=200)
+
+
+class OnboardingStarted(BaseModel):
+    onboarding_id: uuid.UUID
+    church_id: uuid.UUID
+    admin_person_id: uuid.UUID
+    topic: OnboardingTopic
+    message: str
+
+
+class ChatIn(BaseModel):
+    text: str = Field(min_length=1, max_length=20_000)
+
+
+class AgentReplyOut(BaseModel):
+    message: str
+    topic: OnboardingTopic
+    status: OnboardingStatus
+    proposal_id: uuid.UUID | None
+
+
+class OnboardingOut(BaseModel):
+    id: uuid.UUID
+    status: OnboardingStatus
+    topic: OnboardingTopic
+    pending_question: str | None
+    proposal_id: uuid.UUID | None
+    summary: str
+
+
+class DecisionIn(BaseModel):
+    person_id: uuid.UUID
