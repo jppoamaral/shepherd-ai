@@ -146,3 +146,10 @@ class OnboardingStatus(StrEnum):
     PROPOSED = "proposed"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class Recipient(StrEnum):
+    """Who in a ministry hears about a finding first (warning routing)."""
+
+    SCHEDULER = "scheduler"
+    APPROVER = "approver"
