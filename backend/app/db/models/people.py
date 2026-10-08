@@ -25,6 +25,8 @@ class Person(TenantMixin, CreatedAtMixin, Base):
     channel_identity: Mapped[str | None] = mapped_column(sa.String(200))
     opted_in: Mapped[bool] = mapped_column(default=False)
     stopped: Mapped[bool] = mapped_column(default=False)
+    # Church admin: runs onboarding and approves the church profile.
+    is_admin: Mapped[bool] = mapped_column(default=False, server_default=sa.false())
 
 
 class Membership(TenantMixin, Base):

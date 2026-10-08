@@ -124,3 +124,25 @@ class ProposalStatus(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class OnboardingTopic(StrEnum):
+    """Onboarding interview topics, in the order the agent asks them."""
+
+    BASICS = "basics"
+    GATHERINGS = "gatherings"
+    MINISTRIES = "ministries"
+    ROLES = "roles"
+    LEADERS = "leaders"
+    LOAD_RULES = "load_rules"
+    ROUTING = "routing"
+    ROSTER_SETTINGS = "roster_settings"
+    AVAILABILITY = "availability"
+    REVIEW = "review"
+
+
+class OnboardingStatus(StrEnum):
+    ACTIVE = "active"
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
