@@ -74,7 +74,7 @@ def get_gatherings(
     start = _aware(start) if start else datetime.now(UTC)
     end = _aware(end) if end else start + timedelta(weeks=4)
     if end <= start:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "'to' must be after 'from'")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "'to' must be after 'from'")
     return reader.gatherings(start, end)
 
 

@@ -3,6 +3,11 @@
 A weekly gathering keeps its local wall-clock time across daylight-saving changes
 ("Sunday 9:30" stays 9:30 local), so its UTC instant shifts. Durations are real
 elapsed time, so an end time is always `start + duration`.
+
+Occurrences are returned in UTC on purpose: Python compares and subtracts two
+datetimes that share a tzinfo by wall clock, ignoring DST offsets, which would
+make overlap and duration math wrong on transition nights. Convert to the
+church's zone only for display.
 """
 
 import uuid
@@ -29,10 +34,8 @@ def occurrences(
         if not spec.active:
             continue
         for day in _local_dates(spec, start, end):
-            start_at = datetime.combine(day, spec.local_start_time, tzinfo=tz)
-            # Add the duration in absolute time, then express the end in local time.
-            duration = timedelta(minutes=spec.duration_minutes)
-            end_at = (start_at.astimezone(UTC) + duration).astimezone(tz)
+            start_at = datetime.combine(day, spec.local_start_time, tzinfo=tz).astimezone(UTC)
+            end_at = start_at + timedelta(minutes=spec.duration_minutes)
             result.append(Occurrence(spec.id, start_at, end_at))
     return sorted(result, key=lambda o: (o.start_at, str(o.gathering_type_id)))
 

@@ -23,5 +23,5 @@ class GatheringTypeSpec:
 @dataclass(frozen=True)
 class Occurrence:
     gathering_type_id: uuid.UUID
-    start_at: datetime  # timezone-aware
-    end_at: datetime  # timezone-aware
+    start_at: datetime  # UTC
+    end_at: datetime  # UTC
