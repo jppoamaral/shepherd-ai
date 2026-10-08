@@ -68,7 +68,16 @@ Run from the repo root unless noted. (Established in Milestone 1; update this se
 | Lint / format | `cd backend && uv run ruff check . && uv run ruff format .` |
 | Type check | `cd backend && uv run mypy` |
 
-Tests need Postgres running (`docker compose up -d db`).
+Tests need Postgres running (`docker compose up -d db`). They create their own `shepherd_test` and `shepherd_test_migrations` databases, seed them with a fixed date (2026-10-08), and roll back each test.
+
+Local setup on macOS: `brew install uv colima docker docker-compose`, then `colima start`. uv installs Python 3.12 itself.
+
+## Gotchas
+
+- **Alembic autogenerate and enums:** enum columns use `enum_column()` (text + CHECK, no native PG enums). Autogenerate emits each enum's CHECK twice (once under its bare name and once as `op.f("ck_…")`). Delete the bare-named copy and set `create_constraint=False` on the `sa.Enum(...)` in the migration. `test_migrations.py` fails if models and migrations drift.
+- **Datetimes:** keep instants in UTC and convert to the church's zone only for display. Python compares and subtracts two datetimes that share a tzinfo by wall clock, ignoring DST offsets.
+- **No auth yet:** endpoints are open and scoped only by `church_id` in the path. This is OK for synthetic local data; auth must land before any real church data.
+- **Seeds are fixtures:** they write the record directly, standing in for an approved onboarding profile and roster history. App code must still go through proposals and ApprovalService.
 
 ## Working agreements
 
