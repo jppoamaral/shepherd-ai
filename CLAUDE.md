@@ -64,13 +64,19 @@ Run from the repo root unless noted. (Established in Milestone 1; update this se
 | Migrate | `cd backend && uv run alembic upgrade head` |
 | New migration | `cd backend && uv run alembic revision --autogenerate -m "<msg>"` |
 | Seed | `cd backend && uv run python -m seeds` |
-| Test | `cd backend && uv run pytest` |
+| Test | `cd backend && uv run pytest` (uses FakeLLM; evals excluded) |
+| Model evals | `cd backend && uv run pytest -m eval tests/evals` (needs Azure OpenAI keys; skipped otherwise) |
+| Onboarding chat (terminal) | `cd backend && uv run python -m app.cli.onboard` (API must be running) |
 | Lint / format | `cd backend && uv run ruff check . && uv run ruff format .` |
 | Type check | `cd backend && uv run mypy` |
 
 Tests need Postgres running (`docker compose up -d db`). They create their own `shepherd_test` and `shepherd_test_migrations` databases, seed them with a fixed date (2026-10-08), and roll back each test.
 
 Local setup on macOS: `brew install uv colima docker docker-compose`, then `colima start`. uv installs Python 3.12 itself.
+
+## Language model
+
+Set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` (a model with structured outputs) and optionally `AZURE_OPENAI_API_VERSION`. Put them in `backend/.env` for local runs and the repo-root `.env` for docker compose; both are gitignored. Without them, chat endpoints return 503 and evals skip. Tests never call the real model: they inject `FakeLLM` (`app/llm/fake.py`). Prompts live in `app/llm/prompts/`.
 
 ## Gotchas
 

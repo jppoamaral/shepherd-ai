@@ -50,4 +50,6 @@ strict = true
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "-ra"
+# Evals call the real model (cost, network): run them with `pytest -m eval tests/evals`.
+addopts = "-ra -m 'not eval'"
+markers = ["eval: model-behaviour evals against the real Azure OpenAI deployment"]
