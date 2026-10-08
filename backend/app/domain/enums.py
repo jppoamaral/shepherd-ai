@@ -19,7 +19,7 @@ class Recurrence(StrEnum):
 
 
 class Weekday(StrEnum):
-    """ISO-style weekday names; `.index` maps to `date.weekday()` (Monday = 0)."""
+    """Weekday names; `.number` matches `date.weekday()` (Monday = 0)."""
 
     MONDAY = "monday"
     TUESDAY = "tuesday"
@@ -30,7 +30,7 @@ class Weekday(StrEnum):
     SUNDAY = "sunday"
 
     @property
-    def index(self) -> int:
+    def number(self) -> int:
         return list(Weekday).index(self)
 
 
