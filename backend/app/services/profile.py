@@ -168,6 +168,7 @@ def _merge_section(draft: ChurchProfileDraft, topic: OnboardingTopic, reply: Rep
             if reply.language:
                 draft.language = reply.language.lower()
         case GatheringsReply():
+            known = {_key(g.name): g.name for g in draft.gatherings}
             draft.gatherings = _keep_inferred(
                 [
                     _gathering(g.name, g.kind, g.weekday, g.date, g.start_time, g.duration_minutes)
@@ -175,16 +176,27 @@ def _merge_section(draft: ChurchProfileDraft, topic: OnboardingTopic, reply: Rep
                 ],
                 draft.gatherings,
             )
+            # Role minimums refer to gatherings by name: carry renames into them.
+            renames = {
+                known[_key(g.previous_name)]: g.name.strip()
+                for g in reply.gatherings
+                if g.previous_name and _key(g.previous_name) in known
+            }
+            for owner in draft.ministries:
+                for role in owner.roles:
+                    for minimum in role.minimums:
+                        minimum.gathering = renames.get(minimum.gathering, minimum.gathering)
         case MinistriesReply():
             existing = {_key(m.name): m for m in draft.ministries}
             ministries = []
-            for m in reply.ministries:
-                kept = existing.get(_key(m.name))
-                base = kept.model_copy(deep=True) if kept else DraftMinistry(name=m.name)
-                base.name, base.aliases = (
-                    m.name.strip(),
-                    [a.strip() for a in m.aliases if a.strip()],
+            for given in reply.ministries:
+                # A renamed ministry keeps its roles, leaders and settings.
+                kept = existing.get(_key(given.previous_name or "")) or existing.get(
+                    _key(given.name)
                 )
+                base = kept.model_copy(deep=True) if kept else DraftMinistry(name=given.name)
+                base.name = given.name.strip()
+                base.aliases = [a.strip() for a in given.aliases if a.strip()]
                 ministries.append(base)
             draft.ministries = ministries
         case RolesReply():

@@ -152,7 +152,12 @@ class OnboardingAgent:
         question = question_for(topic)
         if topic is T.REVIEW:
             return f"{question}\n\n{render_summary(draft)}"
-        if topic in SHOW_DEFAULTS or _has_inferred(draft, topic):
+        if _has_inferred(draft, topic):
+            return (
+                f"Here's what I took from your sample:\n{render_section(draft, topic)}\n\n"
+                "Is that right? Correct or add anything, or say “that's all” if it's right."
+            )
+        if topic in SHOW_DEFAULTS:
             return f"{question}\n\n{render_section(draft, topic)}"
         return question
 

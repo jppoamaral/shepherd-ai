@@ -16,6 +16,8 @@ from app.domain.profile import (
     GatheringsReply,
     LoadRuleIn,
     LoadRulesReply,
+    MinistriesReply,
+    MinistryIn,
     ReviewReply,
     RoleIn,
     RolesReply,
@@ -252,3 +254,31 @@ def test_sample_never_overwrites_what_the_admin_said() -> None:
     keys = next(r for m in updated.ministries for r in m.roles if r.name == "Keys")
     assert {m.gathering: m.minimum for m in keys.minimums}["Wednesday Prayer"] == 1
     assert added == []
+
+
+def test_renaming_a_gathering_carries_into_role_minimums() -> None:
+    draft = run(SCRIPT[:4])
+    renamed = gatherings(True)
+    renamed.gatherings[0] = renamed.gatherings[0].model_copy(
+        update={"name": "Sunday Worship", "previous_name": "Sunday Service"}
+    )
+    result = apply_reply(draft, T.GATHERINGS, renamed)
+    assert T.ROLES in result.draft.confirmed  # nothing broke
+    keys = next(r for m in result.draft.ministries for r in m.roles if r.name == "Keys")
+    assert {m.gathering for m in keys.minimums} == {"Sunday Worship", "Wednesday Prayer"}
+
+
+def test_renaming_a_ministry_keeps_its_roles_and_leaders() -> None:
+    draft = run(SCRIPT[:5])
+    renamed = MinistriesReply(
+        ministries=[
+            MinistryIn(name="Worship", aliases=["Band"]),
+            MinistryIn(name="Kids Church", aliases=["Kids"], previous_name="Kids"),
+        ],
+        **DONE,
+    )
+    result = apply_reply(draft, T.MINISTRIES, renamed)
+    kids = next(m for m in result.draft.ministries if m.name == "Kids Church")
+    assert [r.name for r in kids.roles] == ["Helper"]
+    assert [leader.name for leader in kids.leaders] == ["Sarah Collins"]
+    assert T.ROLES in result.draft.confirmed and T.LEADERS in result.draft.confirmed

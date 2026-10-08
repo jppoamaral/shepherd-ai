@@ -125,6 +125,20 @@ def test_ministry_nicknames_become_aliases(
     assert any("band" in a.casefold() for a in worship.aliases)
 
 
+def test_renaming_a_ministry_keeps_its_roles(
+    session: Session, started: Started, agent: OnboardingAgent
+) -> None:
+    draft = prior(T.LEADERS)  # Worship and Kids, both with roles
+    draft.confirmed.remove(T.MINISTRIES)
+    at(session, started, T.MINISTRIES, draft)
+    agent.handle_message(
+        started.session.id, "Actually call Kids 'Kids Church'. Otherwise that's right."
+    )
+    ministries = {m.name: m for m in draft_after(session, started).ministries}
+    assert "Kids Church" in ministries
+    assert [r.name for r in ministries["Kids Church"].roles] == ["Helper"]
+
+
 def test_who_schedules_and_who_approves(
     session: Session, started: Started, agent: OnboardingAgent
 ) -> None:

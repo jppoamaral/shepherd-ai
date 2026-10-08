@@ -36,11 +36,13 @@ TOPIC_GUIDANCE: dict[OnboardingTopic, str] = {
         "Section: every recurring service, meeting or event (weekday, start time, duration "
         "in minutes) and every one-off event (date instead of weekday). kind is 'special' "
         "for big moments the admin calls special (Christmas, Easter, a conference) and "
-        "'regular' otherwise. If a duration is not given, ask for it."
+        "'regular' otherwise. If a duration is not given, ask for it. When the admin renames "
+        "a gathering, set previous_name to its old name."
     ),
     T.MINISTRIES: (
         "Section: the ministries that need a schedule, with any other names people use "
-        "for them as aliases."
+        "for them as aliases. When the admin renames a ministry, set previous_name to its "
+        "old name so its roles and leaders carry over."
     ),
     T.ROLES: (
         "Section: for each ministry, its roles and the minimum number of people each role "

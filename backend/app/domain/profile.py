@@ -172,6 +172,10 @@ class BasicsReply(ReplyBase):
 
 class GatheringIn(BaseModel):
     name: str
+    previous_name: str | None = Field(
+        default=None,
+        description="If this renames an item in current_section, that item's old name; otherwise null",
+    )
     kind: GatheringKind
     weekday: Weekday | None = Field(description="For weekly gatherings; null for one-off events")
     date: str | None = Field(description="YYYY-MM-DD for one-off events; null for weekly")
@@ -185,6 +189,10 @@ class GatheringsReply(ReplyBase):
 
 class MinistryIn(BaseModel):
     name: str
+    previous_name: str | None = Field(
+        default=None,
+        description="If this renames an item in current_section, that item's old name; otherwise null",
+    )
     aliases: list[str]
 
 
