@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.db.models import Church, Gathering, GatheringType
-from app.domain.enums import Recurrence
+from app.domain.enums import ProfileStatus, Recurrence
 from app.domain.gatherings import GatheringTypeSpec, Occurrence
 
 
@@ -65,9 +65,13 @@ def spec_from_model(gathering_type: GatheringType) -> GatheringTypeSpec:
 def ensure_gatherings(session: Session, church_id: uuid.UUID, start: date, end: date) -> int:
     """Create any missing Gathering rows for one church in `[start, end]`. Idempotent.
 
+    Draft churches (profile not yet approved) get none.
+
     Returns the number of rows inserted. Does not commit.
     """
     church = session.get_one(Church, church_id)
+    if church.profile_status is not ProfileStatus.APPROVED:
+        return 0  # nothing runs until a person approves the profile
     types = session.scalars(select(GatheringType).where(GatheringType.church_id == church_id))
     rows = [
         {

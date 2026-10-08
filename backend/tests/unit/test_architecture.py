@@ -19,8 +19,13 @@ AGENT_ALLOWED_APP_IMPORTS = (
 )
 AGENT_FORBIDDEN_PREFIXES = ("app.db", "app.services.approval", "app.channels")
 
-# Rule 1: only these modules may import the record-writing repositories.
-WRITE_REPOSITORIES = ("app.db.repositories.assignments", "app.db.repositories.messages")
+# Rule 1: only ApprovalService may import the record-writing repositories and the
+# proposal handlers that apply side effects.
+WRITE_REPOSITORIES = (
+    "app.db.repositories.assignments",
+    "app.db.repositories.messages",
+    "app.services.profile_apply",
+)
 WRITE_REPOSITORY_IMPORTERS = {"app.services.approval"}
 
 
