@@ -61,6 +61,18 @@ _WHY_AWAY = re.compile(
     re.IGNORECASE,
 )
 
+# Small talk is answered in code, without the model.
+_GREETING = re.compile(
+    r"^\s*(hi|hello|hey|hiya|howdy|good (morning|afternoon|evening))"
+    r",?( there| shepherd)?[\s!.,]*$",
+    re.IGNORECASE,
+)
+_THANKS = re.compile(
+    r"^\s*(thanks?( you)?|thank you( so much| very much)?|thx|ty|cheers|great|ok(ay)?|perfect)"
+    r",?( shepherd)?[\s!.,]*$",
+    re.IGNORECASE,
+)
+
 NEEDS_PERSON = {
     AskIntent.REPLACE,
     AskIntent.DRAFT_MESSAGE,
@@ -141,6 +153,18 @@ def ask(
     if private_reason(question) or _WHY_AWAY.search(question):
         named = _named_in(ctx, question)
         return _private(ctx, named[0] if len(named) == 1 else None)
+    if _GREETING.match(question):
+        return AskAnswer(
+            intent=AskIntent.UNKNOWN,
+            text=f"Hi {ctx.leader_first}! Ask me in your own words, or start with one of these.",
+            actions=_suggestions(ctx),
+        )
+    if _THANKS.match(question):
+        return AskAnswer(
+            intent=AskIntent.UNKNOWN,
+            text="You're welcome. Anything else?",
+            actions=_suggestions(ctx),
+        )
     if llm is None:
         return AskAnswer(
             intent=AskIntent.UNKNOWN,

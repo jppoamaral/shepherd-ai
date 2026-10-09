@@ -200,6 +200,17 @@ def test_typed_questions_need_the_model_but_suggestions_dont(
     assert ask(client, grace, intent="serving_a_lot").status_code == 200
 
 
+def test_hi_and_thanks_are_answered_without_the_model(client: TestClient, grace: dict) -> None:
+    app.dependency_overrides[ask_llm_dependency] = lambda: None
+    out = ask(client, grace, question="hi").json()
+    assert out["text"] == "Hi Sarah! Ask me in your own words, or start with one of these."
+    assert out["actions"]
+    out = ask(client, grace, question="Good morning, Shepherd!").json()
+    assert out["text"].startswith("Hi Sarah!")
+    out = ask(client, grace, question="thanks!").json()
+    assert out["text"] == "You're welcome. Anything else?"
+
+
 def test_asking_never_writes_to_the_record(
     client: TestClient, grace: dict, session: Session
 ) -> None:
