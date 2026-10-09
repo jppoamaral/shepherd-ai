@@ -118,8 +118,9 @@ open "See what volunteers get" on "Who's leading today?" in a second window.
      dates; never leader notes or memory.
    - "stop" / "start": reminders off and on; her leader is told.
 
-Reset before presenting: the demo chat keeps Anna's own messages in that browser, so use
-**Clear Anna's side of this demo chat** under the phone after a reset.
+Reset before presenting. Anna's own messages are kept in the browser per person, and a
+reset gives everyone new ids, so her phone starts clean; **Clear Anna's side of this demo
+chat** under the phone is there for a rerun without a reset.
 
 ### What is sample content
 
