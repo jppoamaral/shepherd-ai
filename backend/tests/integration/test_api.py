@@ -86,8 +86,8 @@ def test_openapi_schema_is_published(client: TestClient) -> None:
     assert "ChurchOut" in schema["components"]["schemas"]
 
 
-def test_only_onboarding_and_the_approval_queue_write(client: TestClient) -> None:
-    """Every write goes through onboarding (which only proposes) or ApprovalService."""
+def test_only_known_endpoints_write(client: TestClient) -> None:
+    """Writes go through onboarding or intake (which only propose) or ApprovalService."""
     schema = client.get("/openapi.json").json()
     writes = {
         (method, path)
@@ -101,4 +101,6 @@ def test_only_onboarding_and_the_approval_queue_write(client: TestClient) -> Non
         ("post", "/churches/{church_id}/onboarding/{onboarding_id}/sample"),
         ("post", "/churches/{church_id}/proposals/{proposal_id}/approve"),
         ("post", "/churches/{church_id}/proposals/{proposal_id}/reject"),
+        ("post", "/churches/{church_id}/ministries/{ministry_id}/intake"),
+        ("post", "/churches/{church_id}/intake/{intake_id}/answers"),
     }

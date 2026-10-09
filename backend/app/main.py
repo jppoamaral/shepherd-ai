@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import onboarding, proposals
+from app.api import intake, onboarding, proposals
 from app.api.routes import router
 
 app = FastAPI(
@@ -11,3 +11,4 @@ app = FastAPI(
 app.include_router(router)
 app.include_router(onboarding.router)
 app.include_router(proposals.router)
+app.include_router(intake.router)

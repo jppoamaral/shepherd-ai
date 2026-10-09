@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.domain.enums import (
     Experience,
     GatheringKind,
+    IntakeStatus,
     MembershipStatus,
     OnboardingStatus,
     OnboardingTopic,
@@ -19,6 +20,7 @@ from app.domain.enums import (
     RosterPath,
     Weekday,
 )
+from app.domain.intake import IntakeQuestion
 
 
 class Schema(BaseModel):
@@ -159,3 +161,23 @@ class OnboardingOut(BaseModel):
 
 class DecisionIn(BaseModel):
     person_id: uuid.UUID
+
+
+class IntakeSubmit(BaseModel):
+    person_id: uuid.UUID
+    text: str = Field(min_length=1, max_length=50_000)
+
+
+class IntakeAnswer(BaseModel):
+    person_id: uuid.UUID
+    question_id: str
+    choice_id: str
+
+
+class IntakeOut(BaseModel):
+    id: uuid.UUID
+    ministry_id: uuid.UUID
+    status: IntakeStatus
+    questions: list[IntakeQuestion]
+    summary: str
+    proposal_id: uuid.UUID | None

@@ -49,6 +49,10 @@ class IntakeNotAllowed(PermissionError):
     pass
 
 
+class IntakeClosed(RuntimeError):
+    """The intake is no longer waiting for answers (already proposed or decided)."""
+
+
 class IntakeUnreadable(ValueError):
     """The text couldn't be read as a schedule. The message is a question for the leader."""
 
@@ -104,9 +108,7 @@ class StewardAgent:
         state = self._load(intake_id)
         self._require_scheduler(state.ministry_id, person_id)
         if state.status is not IntakeStatus.NEEDS_ANSWERS:
-            raise IntakeNotAllowed(
-                f"this schedule is already {state.status.value.replace('_', ' ')}"
-            )
+            raise IntakeClosed(f"this schedule is already {state.status.value.replace('_', ' ')}")
         state.draft = apply_answer(state.draft, question_id, choice_id)
         self._propose_if_ready(state)
         self.intakes.save(state)
