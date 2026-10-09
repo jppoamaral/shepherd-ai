@@ -30,9 +30,14 @@ WRITE_REPOSITORIES = (
     "app.services.profile_apply",
     "app.services.roster_apply",
     "app.services.memory_apply",
+    "app.services.huddle_apply",
 )
 # ApprovalService, and the handlers it calls, which write through the repositories.
-WRITE_REPOSITORY_IMPORTERS = {"app.services.approval", "app.services.roster_apply"}
+WRITE_REPOSITORY_IMPORTERS = {
+    "app.services.approval",
+    "app.services.roster_apply",
+    "app.services.huddle_apply",
+}
 
 
 def module_name(path: Path) -> str:

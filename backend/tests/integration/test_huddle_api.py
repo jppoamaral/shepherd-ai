@@ -1,13 +1,18 @@
 """Conflict huddle over HTTP on the seeded demo week (clock pinned to Thu 8 Oct 6 PM)."""
 
+import uuid
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from app.api.huddles import now_dependency
+from app.db.models import Assignment, AuditLog, Blockout, Message, Proposal
+from app.domain.enums import ProposalStatus, StatedBy
 from app.main import app
 from tests.conftest import GRACE
 
@@ -135,3 +140,179 @@ def test_no_common_window_says_so_and_lists_nearest_options(
     assert huddle["no_common_slot"] is True and huddle["slots"] == []
     assert any(o.startswith("David Morales is free") for o in huddle["nearest_options"])
     assert any(o.startswith("Tom Becker is free") for o in huddle["nearest_options"])
+
+
+# --- Resolve: the Kids leader accepts Shepherd's replacement on her own roster ------------
+
+
+def kids_huddle(client: TestClient, grace: dict) -> tuple[dict, dict, str]:
+    """Sarah's huddle over Anna's double booking, its Kids side, and the endpoint base."""
+    finding = overlap_for(client, grace, "Sarah Collins", "Anna Parker")
+    huddle = start(client, grace, finding, "Sarah Collins").json()
+    kids = next(s for s in huddle["agenda"]["sides"] if s["ministry"] == "Kids")
+    return huddle, kids, f"/churches/{grace['id']}/huddles/{huddle['id']}"
+
+
+def resolve_kids(
+    client: TestClient, grace: dict, base: str, kids: dict, leader: str = "Sarah Collins"
+):  # type: ignore[no-untyped-def]
+    return client.post(
+        f"{base}/accept-replacement",
+        json={"person_id": grace["leaders"][leader], "ministry_id": kids["ministry_id"]},
+    )
+
+
+def counts(session: Session, grace: dict) -> tuple[int, int]:
+    church = uuid.UUID(grace["id"])
+    messages = session.scalar(select(func.count()).where(Message.church_id == church))
+    proposals = session.scalar(select(func.count()).where(Proposal.church_id == church))
+    return messages or 0, proposals or 0
+
+
+def test_resolve_puts_the_replacement_in_annas_kids_place_once(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    _, kids, base = kids_huddle(client, grace)
+    assert kids["replacement_person_id"] and kids["ministry_id"]
+    anna = uuid.UUID(grace["people"]["Anna Parker"])
+    anna_before = session.scalar(select(func.count()).where(Assignment.person_id == anna))
+
+    response = resolve_kids(client, grace, base, kids)
+    assert response.status_code == 200, response.text
+    out = response.json()
+    assert out["status"] == "resolved"
+    assert out["finding_status"] == "resolved"  # the double booking is gone
+    assert out["replacement"] == {
+        "ministry_id": kids["ministry_id"],
+        "ministry": "Kids",
+        "resolved_by": "Sarah Collins",
+        "volunteer": "Anna Parker",
+        "replacement": kids["replacement"],
+        "can_undo": True,
+    }
+    row = session.scalars(
+        select(Assignment).where(Assignment.reason.like("%settled from the huddle%"))
+    ).one()
+    assert row.person_id == uuid.UUID(kids["replacement_person_id"])
+    # Anna keeps her Worship place; only her Kids place moved.
+    assert session.scalar(select(func.count()).where(Assignment.person_id == anna)) == (
+        anna_before - 1
+    )
+    approved = session.scalars(
+        select(Proposal).where(Proposal.type == "huddle_accept_replacement")
+    ).all()
+    assert [p.status for p in approved] == [ProposalStatus.APPROVED]
+
+    again = resolve_kids(client, grace, base, kids)
+    assert again.status_code == 409
+    assert (
+        session.scalar(select(func.count()).where(Proposal.type == "huddle_accept_replacement"))
+        == 1
+    )
+    assert session.get_one(Assignment, row.id).person_id == uuid.UUID(kids["replacement_person_id"])
+
+
+def test_resolve_writes_an_audit_entry(client: TestClient, grace: dict, session: Session) -> None:
+    _, kids, base = kids_huddle(client, grace)
+    assert resolve_kids(client, grace, base, kids).status_code == 200
+    proposal = session.scalars(
+        select(Proposal).where(Proposal.type == "huddle_accept_replacement")
+    ).one()
+    entry = session.scalars(select(AuditLog).where(AuditLog.target_id == str(proposal.id))).one()
+    assert entry.action == "proposal.approved"
+    assert entry.target_type == "proposal:huddle_accept_replacement"
+    assert entry.actor == f"person:{grace['leaders']['Sarah Collins']}"
+    assert entry.approved_by_person_id == uuid.UUID(grace["leaders"]["Sarah Collins"])
+    assert entry.after is not None
+    assert entry.after["from_person_id"] == grace["people"]["Anna Parker"]
+    assert entry.after["to_person_id"] == kids["replacement_person_id"]
+
+
+def test_resolve_notifies_no_one(client: TestClient, grace: dict, session: Session) -> None:
+    _, kids, base = kids_huddle(client, grace)
+    messages_before, _ = counts(session, grace)
+    assert resolve_kids(client, grace, base, kids).status_code == 200
+    messages_after, _ = counts(session, grace)
+    assert messages_after == messages_before
+    for person in (grace["leaders"]["David Morales"], grace["people"]["Anna Parker"]):
+        assert not session.scalars(
+            select(Message).where(Message.person_id == uuid.UUID(person))
+        ).all()
+
+
+def test_resolve_does_nothing_once_the_conflict_is_settled(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    _, kids, base = kids_huddle(client, grace)
+    recorded = client.post(
+        f"{base}/resolve",
+        json={"person_id": grace["leaders"]["Sarah Collins"], "outcome": "Anna stays on keys."},
+    )
+    assert recorded.status_code == 200
+    _, proposals_before = counts(session, grace)
+
+    response = resolve_kids(client, grace, base, kids)
+    assert response.status_code == 409
+    assert counts(session, grace)[1] == proposals_before  # no proposal left behind
+    assert not session.scalars(
+        select(Assignment).where(Assignment.reason.like("%settled from the huddle%"))
+    ).all()
+
+
+def test_resolve_does_nothing_when_the_replacement_no_longer_fits(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    _, kids, base = kids_huddle(client, grace)
+    # The suggested helper becomes unavailable after the huddle was offered.
+    session.add(
+        Blockout(
+            church_id=uuid.UUID(grace["id"]),
+            person_id=uuid.UUID(kids["replacement_person_id"]),
+            start_date=date(2026, 10, 10),
+            end_date=date(2026, 10, 12),
+            stated_by=StatedBy.VOLUNTEER,
+        )
+    )
+    session.flush()
+    _, proposals_before = counts(session, grace)
+
+    response = resolve_kids(client, grace, base, kids)
+    assert response.status_code == 409
+    assert "can't take Anna's place" in response.json()["detail"]
+    assert counts(session, grace)[1] == proposals_before
+    assert not session.scalars(
+        select(Assignment).where(Assignment.reason.like("%settled from the huddle%"))
+    ).all()
+    huddle = client.get(base).json()
+    assert huddle["status"] == "offered" and huddle["finding_status"] == "open"
+
+
+def test_only_the_kids_approver_can_resolve_the_kids_side(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    _, kids, base = kids_huddle(client, grace)
+    _, proposals_before = counts(session, grace)
+    response = resolve_kids(client, grace, base, kids, leader="David Morales")
+    assert response.status_code == 403
+    assert counts(session, grace)[1] == proposals_before
+
+
+def test_undo_puts_anna_back_and_reopens_the_conflict(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    _, kids, base = kids_huddle(client, grace)
+    assert resolve_kids(client, grace, base, kids).status_code == 200
+    sarah = grace["leaders"]["Sarah Collins"]
+
+    undone = client.post(f"{base}/undo-replacement", json={"person_id": sarah})
+    assert undone.status_code == 200, undone.text
+    out = undone.json()
+    assert out["status"] == "offered" and out["replacement"] is None and out["outcome"] is None
+    assert out["finding_status"] == "open"
+    assert not session.scalars(
+        select(Assignment).where(Assignment.reason.like("%settled from the huddle%"))
+    ).all()
+    undo = session.scalars(select(Proposal).where(Proposal.type == "huddle_undo_replacement")).one()
+    assert session.scalars(select(AuditLog).where(AuditLog.target_id == str(undo.id))).one()
+
+    assert client.post(f"{base}/undo-replacement", json={"person_id": sarah}).status_code == 409

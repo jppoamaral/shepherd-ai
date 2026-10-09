@@ -4,44 +4,51 @@ Deterministic: shared slots come from the leaders' availability windows, and
 each side's suggested replacement is a free, not-blocked-out member of that
 leader's own team in the same role. Only leaders are involved; the volunteer
 is never invited. The decision stays with the leaders: resolving records their
-outcome and re-runs the checks, but reassigns nobody.
+outcome and re-runs the checks, but reassigns nobody. A leader may instead accept
+Shepherd's replacement for their own roster ("Resolve"), which goes through the
+approval queue like any other change to the record.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
     Assignment,
-    Blockout,
     Church,
     Finding,
-    Gathering,
     Huddle,
     LeaderAvailability,
-    Membership,
     MinistryLeader,
     Person,
-    RoleSkill,
 )
+from app.db.repositories.proposals import ProposalRepository
 from app.domain.enums import (
-    AssignmentStatus,
-    Experience,
     FindingStatus,
     FindingType,
     HuddleStatus,
-    MembershipStatus,
 )
-from app.domain.schemas import HuddleAgenda, HuddleLeader, HuddleOut, HuddleSide, HuddleSlot
-from app.services.checks_runner import run_checks
+from app.domain.schemas import (
+    HuddleAgenda,
+    HuddleLeader,
+    HuddleOut,
+    HuddleReplacement,
+    HuddleSide,
+    HuddleSlot,
+)
+from app.services.approval import ApprovalService
+from app.services.huddle_replacement import (
+    ACCEPT_TYPE,
+    UNDO_TYPE,
+    free_candidates,
+    recheck_around,
+)
 from app.services.huddle_slots import Window, common_slots, nearest_options
 from app.services.profile import format_time
-
-EXPERIENCE_RANK = {Experience.VETERAN: 0, Experience.EXPERIENCED: 1, Experience.NEW: 2}
 
 
 class HuddleError(Exception):
@@ -174,10 +181,60 @@ def resolve(
         raise HuddleError("this huddle is already resolved")
     huddle.outcome = outcome.strip()
     huddle.status = HuddleStatus.RESOLVED
-    finding = session.get_one(Finding, huddle.finding_id)
-    on = datetime.fromisoformat(finding.details["sides"][0]["start"]).date()
-    run_checks(session, church_id, on - timedelta(days=7), on + timedelta(days=7))
+    recheck_around(session, church_id, session.get_one(Finding, huddle.finding_id))
     session.flush()
+    return huddle_out(session, huddle)
+
+
+def accept_replacement(
+    session: Session,
+    church_id: uuid.UUID,
+    huddle_id: uuid.UUID,
+    person_id: uuid.UUID,
+    ministry_id: uuid.UUID,
+) -> HuddleOut:
+    """Resolve: the leader accepts Shepherd's replacement on their own roster.
+
+    Recorded through the approval queue (a proposal the leader approves at once).
+    No one is messaged; the other leader's roster is untouched.
+    """
+    huddle = _load(session, church_id, huddle_id, person_id)
+    finding = session.get_one(Finding, huddle.finding_id)
+    agenda = HuddleAgenda.model_validate(huddle.details["agenda"])
+    side = next((s for s in agenda.sides if s.ministry_id == ministry_id), None)
+    raw = next((s for s in finding.details["sides"] if s["ministry_id"] == str(ministry_id)), None)
+    if side is None or raw is None:
+        raise HuddleNotFound("that ministry isn't part of this double booking")
+    if side.replacement_person_id is None:
+        raise HuddleError(f"Shepherd has no one to suggest for {side.ministry}")
+    proposal = ProposalRepository(session, church_id).create(
+        type=ACCEPT_TYPE,
+        payload={
+            "huddle_id": str(huddle.id),
+            "finding_id": str(finding.id),
+            "ministry_id": str(ministry_id),
+            "ministry": side.ministry,
+            "assignment_id": raw["assignment_id"],
+            "from_person_id": str(finding.person_ids[0]),
+            "to_person_id": str(side.replacement_person_id),
+        },
+        created_by_agent="huddle",
+    )
+    ApprovalService(session).approve(church_id, proposal.id, person_id)
+    return huddle_out(session, huddle)
+
+
+def undo_replacement(
+    session: Session, church_id: uuid.UUID, huddle_id: uuid.UUID, person_id: uuid.UUID
+) -> HuddleOut:
+    """Put the volunteer back and reopen the huddle, through the approval queue."""
+    huddle = _load(session, church_id, huddle_id, person_id)
+    proposal = ProposalRepository(session, church_id).create(
+        type=UNDO_TYPE,
+        payload={"huddle_id": str(huddle.id)},
+        created_by_agent="huddle",
+    )
+    ApprovalService(session).approve(church_id, proposal.id, person_id)
     return huddle_out(session, huddle)
 
 
@@ -214,6 +271,27 @@ def huddle_out(session: Session, huddle: Huddle) -> HuddleOut:
         agenda_text=huddle.agenda or "",
         outcome=huddle.outcome,
         finding_status=finding.status,
+        replacement=_replacement_out(session, huddle),
+    )
+
+
+def _replacement_out(session: Session, huddle: Huddle) -> HuddleReplacement | None:
+    r = huddle.details.get("replacement")
+    if r is None or huddle.status is not HuddleStatus.RESOLVED:
+        return None
+    current = session.scalar(
+        select(Assignment.person_id).where(
+            Assignment.church_id == huddle.church_id,
+            Assignment.id == uuid.UUID(r["assignment_id"]),
+        )
+    )
+    return HuddleReplacement(
+        ministry_id=r["ministry_id"],
+        ministry=r["ministry"],
+        resolved_by=r["resolved_by"],
+        volunteer=r["volunteer"],
+        replacement=r["replacement"],
+        can_undo=current is not None and str(current) == r["replacement_id"],
     )
 
 
@@ -280,90 +358,31 @@ def _side(
     tz: ZoneInfo,
 ) -> HuddleSide:
     start, end = datetime.fromisoformat(side["start"]), datetime.fromisoformat(side["end"])
-    replacement = _replacement(session, church_id, side, volunteer_id, start, end)
+    free = free_candidates(
+        session,
+        church_id,
+        uuid.UUID(side["ministry_id"]),
+        uuid.UUID(side["role_id"]),
+        volunteer_id,
+        start,
+        end,
+    )
+    replacement = free[0] if free else None
     when = f"{start.astimezone(tz):%a %-d %b} {format_time(start.astimezone(tz).time())}"
     if replacement is None:
         note = f"Nobody else on {side['ministry']} who plays {side['role']} is free then."
     else:
-        note = f"{replacement[0]} ({replacement[1].value}) is free and not blocked out."
+        note = f"{replacement.name} ({replacement.experience.value}) is free and not blocked out."
     return HuddleSide(
         ministry=side["ministry"],
+        ministry_id=uuid.UUID(side["ministry_id"]),
         role=side["role"],
         gathering=f"{side['gathering']}, {when}",
         leader=leader,
-        replacement=replacement[0] if replacement else None,
+        replacement=replacement.name if replacement else None,
+        replacement_person_id=replacement.person_id if replacement else None,
         replacement_note=note,
     )
-
-
-def _replacement(
-    session: Session,
-    church_id: uuid.UUID,
-    side: dict[str, str],
-    volunteer_id: uuid.UUID,
-    start: datetime,
-    end: datetime,
-) -> tuple[str, Experience] | None:
-    """A free team member in the same role: most experienced first, then lightest week, then name."""
-    candidates = session.execute(
-        select(Person.id, Person.name, RoleSkill.experience)
-        .join(Membership, Membership.person_id == Person.id)
-        .join(RoleSkill, RoleSkill.membership_id == Membership.id)
-        .where(
-            Membership.church_id == church_id,
-            Membership.ministry_id == uuid.UUID(side["ministry_id"]),
-            Membership.status == MembershipStatus.ACTIVE,
-            RoleSkill.role_id == uuid.UUID(side["role_id"]),
-            Person.id != volunteer_id,
-            Person.stopped.is_(False),
-        )
-    ).all()
-    if not candidates:
-        return None
-    ids = [c.id for c in candidates]
-    busy = set(
-        session.scalars(
-            select(Assignment.person_id)
-            .join(Gathering, Gathering.id == Assignment.gathering_id)
-            .where(
-                Assignment.church_id == church_id,
-                Assignment.person_id.in_(ids),
-                Assignment.status != AssignmentStatus.DECLINED,
-                Gathering.start_at < end,
-                Gathering.end_at > start,
-            )
-        )
-    )
-    day = start.date()
-    blocked = set(
-        session.scalars(
-            select(Blockout.person_id).where(
-                Blockout.church_id == church_id,
-                Blockout.person_id.in_(ids),
-                Blockout.start_date <= day,
-                Blockout.end_date >= day,
-            )
-        )
-    )
-    # Lighter week first: assignments within a few days either side of this one.
-    week_load: dict[uuid.UUID, int] = {
-        person_id: count
-        for person_id, count in session.execute(
-            select(Assignment.person_id, func.count())
-            .join(Gathering, Gathering.id == Assignment.gathering_id)
-            .where(
-                Assignment.church_id == church_id,
-                Assignment.person_id.in_(ids),
-                Assignment.status != AssignmentStatus.DECLINED,
-                Gathering.start_at >= start - timedelta(days=3),
-                Gathering.start_at < start + timedelta(days=4),
-            )
-            .group_by(Assignment.person_id)
-        )
-    }
-    free = [c for c in candidates if c.id not in busy and c.id not in blocked]
-    free.sort(key=lambda c: (EXPERIENCE_RANK[c.experience], week_load.get(c.id, 0), c.name))
-    return (free[0].name, free[0].experience) if free else None
 
 
 def _overlap_label(details: dict[str, Any], tz: ZoneInfo) -> str:

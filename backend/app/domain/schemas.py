@@ -287,10 +287,13 @@ class HuddleSlot(BaseModel):
 
 class HuddleSide(BaseModel):
     ministry: str
+    # Optional so agendas saved before these fields existed still load.
+    ministry_id: uuid.UUID | None = None
     role: str
     gathering: str
     leader: str
     replacement: str | None  # one suggestion from that leader's own team; the leaders decide
+    replacement_person_id: uuid.UUID | None = None
     replacement_note: str
 
 
@@ -299,6 +302,18 @@ class HuddleAgenda(BaseModel):
     volunteer: str  # who the conflict is about; never invited
     overlap: str
     sides: list[HuddleSide]
+
+
+class HuddleReplacement(BaseModel):
+    """One leader settled the conflict by accepting Shepherd's replacement on their roster."""
+
+    ministry_id: uuid.UUID
+    ministry: str
+    resolved_by: str
+    volunteer: str
+    replacement: str
+    # The swap can still be undone: the assignment is still the replacement's.
+    can_undo: bool
 
 
 class HuddleOut(BaseModel):
@@ -314,6 +329,7 @@ class HuddleOut(BaseModel):
     agenda_text: str
     outcome: str | None
     finding_status: FindingStatus
+    replacement: HuddleReplacement | None = None
 
 
 class HuddleStart(BaseModel):
@@ -323,6 +339,15 @@ class HuddleStart(BaseModel):
 class HuddleChoose(BaseModel):
     person_id: uuid.UUID
     slot_id: str
+
+
+class HuddleAcceptReplacement(BaseModel):
+    person_id: uuid.UUID
+    ministry_id: uuid.UUID  # whose side's suggestion to accept; must be the leader's own
+
+
+class HuddleUndoReplacement(BaseModel):
+    person_id: uuid.UUID
 
 
 class HuddleResolve(BaseModel):

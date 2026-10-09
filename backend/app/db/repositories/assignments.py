@@ -43,3 +43,20 @@ class AssignmentWriter:
         self.session.add(assignment)
         self.session.flush()
         return assignment
+
+    def reassign(
+        self,
+        assignment: Assignment,
+        *,
+        person_id: uuid.UUID,
+        reason: str | None,
+        source: AssignmentSource,
+    ) -> Assignment:
+        """Put someone else in the same place (gathering, ministry, role)."""
+        if assignment.church_id != self.church_id:
+            raise ValueError("assignment belongs to another church")
+        assignment.person_id = person_id
+        assignment.reason = reason
+        assignment.source = source
+        self.session.flush()
+        return assignment

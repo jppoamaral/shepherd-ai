@@ -106,6 +106,9 @@ def test_only_known_endpoints_write(client: TestClient) -> None:
         ("post", "/churches/{church_id}/findings/{finding_id}/huddle"),
         ("post", "/churches/{church_id}/huddles/{huddle_id}/choose"),
         ("post", "/churches/{church_id}/huddles/{huddle_id}/resolve"),
+        # Resolve and its undo: a proposal the leader approves at once, via ApprovalService.
+        ("post", "/churches/{church_id}/huddles/{huddle_id}/accept-replacement"),
+        ("post", "/churches/{church_id}/huddles/{huddle_id}/undo-replacement"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/memory/notes"),
         ("delete", "/churches/{church_id}/ministries/{ministry_id}/memory/{memory_id}"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/suggestion/approve"),
