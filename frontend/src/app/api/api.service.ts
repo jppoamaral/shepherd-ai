@@ -12,6 +12,8 @@ import type {
   Ministry,
   Proposal,
   Roster,
+  SuggestedAssignment,
+  Suggestion,
 } from './types';
 
 /** One typed method per endpoint the app uses (see docs/demo.md, "API map"). */
@@ -41,6 +43,22 @@ export class ApiService {
     if (start) params['start'] = start;
     if (end) params['end'] = end;
     return this.http.get<Roster>(`${this.base}/churches/${churchId}/ministries/${ministryId}/roster`, { params });
+  }
+
+  suggestion(churchId: string, ministryId: string): Observable<Suggestion> {
+    return this.http.get<Suggestion>(`${this.base}/churches/${churchId}/ministries/${ministryId}/suggestion`);
+  }
+
+  approveSuggestion(
+    churchId: string,
+    ministryId: string,
+    personId: string,
+    assignments: SuggestedAssignment[],
+  ): Observable<Proposal> {
+    return this.http.post<Proposal>(`${this.base}/churches/${churchId}/ministries/${ministryId}/suggestion/approve`, {
+      person_id: personId,
+      assignments,
+    });
   }
 
   pendingProposals(churchId: string): Observable<Proposal[]> {

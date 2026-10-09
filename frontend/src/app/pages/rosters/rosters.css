@@ -1,0 +1,15 @@
+:host { display: flex; flex-direction: column; gap: var(--space-5); }
+.sh-card h2 { font-size: 22px; line-height: 28px; }
+.short { max-width: 60%; }
+.sh-group { margin-top: var(--space-3); }
+.swap {
+  display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2);
+  min-height: var(--tap-min); padding: 0 var(--space-3); border-radius: var(--radius-pill);
+  border: 1.5px solid var(--line-strong); background: var(--paper); color: var(--forest);
+}
+.swap:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.swap select {
+  border: 0; background: transparent; color: var(--forest); min-height: 40px;
+  font: 600 14px/20px var(--font-sans); cursor: pointer;
+}
+.swap select:focus { outline: none; }

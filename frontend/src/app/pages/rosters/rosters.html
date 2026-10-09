@@ -1,0 +1,147 @@
+<section class="page-head">
+  <h1 class="t-h1">{{ title() }}</h1>
+  <p>Shepherd drafted a roster for {{ session.ministry()?.ministry }}. Review it, change anything, then approve it.</p>
+  <div class="sh-notice sh-notice--info">
+    <sh-icon name="lock" />
+    <span>Choosing a roster lets you edit it first. Nothing is recorded or sent until you approve.</span>
+  </div>
+</section>
+
+@if (approved()) {
+  <p class="sh-notice sh-notice--info" role="status"><sh-icon name="check" />{{ approved() }}</p>
+}
+@if (error()) {
+  <div class="sh-notice sh-notice--error" role="alert"><sh-icon name="alert" /><span>{{ error() }}</span></div>
+}
+
+<div class="two-cols">
+  <!-- Shepherd's suggestion -->
+  @if (!suggestion()) {
+    <section class="sh-card" role="status" aria-label="Shepherd is drafting a roster">
+      <span class="sh-sugg-label"><span class="sh-spark"><sh-icon name="spark" /></span>Drafting</span>
+      <p class="sh-muted">Shepherd is checking who's free, blockouts and everyone's load.</p>
+      <div class="sh-skel"></div><div class="sh-skel"></div><div class="sh-skel short"></div>
+    </section>
+  } @else if (!editing()) {
+    <section class="sh-card" aria-labelledby="sugg-title">
+      <span class="sh-sugg-label"><span class="sh-spark"><sh-icon name="spark" /></span>Suggestion</span>
+      <h2 id="sugg-title">Suggested roster</h2>
+      <p class="sh-muted">Spreads serving across the team and keeps everyone inside their usual load where possible.</p>
+      @if (suggestion()!.lines.length === 0) {
+        <div class="sh-state">
+          <h3>Every place is covered</h3>
+          <p>Your roster already meets every minimum for the coming weeks.</p>
+        </div>
+      } @else {
+        <div class="sh-roster">
+          @for (line of suggestion()!.lines; track $index) {
+            <div class="sh-row" [class.sh-row--empty]="!line.person_id">
+              <div class="sh-date">{{ monthDay(line.start_at) }}<small>{{ dayTime(line.start_at) }}</small></div>
+              <div>
+                <div class="sh-who">
+                  <span class="sh-role">{{ line.role }}</span>
+                  <b>{{ line.name ?? 'Open' }}</b>
+                  <sh-experience [level]="line.experience" />
+                </div>
+                @if (line.person_id) {
+                  <div class="sh-muted">{{ line.reason }}</div>
+                } @else {
+                  <div class="sh-flag"><sh-icon name="alert" /><span>{{ line.reason }}</span></div>
+                }
+                @for (flag of line.flags; track flag) {
+                  <div class="sh-flag"><sh-icon name="alert" /><span>{{ flag }}</span></div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+        <button type="button" class="sh-btn sh-btn--primary sh-btn--block" (click)="choose()">Choose this roster</button>
+      }
+    </section>
+  } @else {
+    <section class="sh-card" aria-labelledby="edit-title">
+      <span class="sh-tag sh-tag--attn"><sh-icon name="pencil" />Editing · not approved yet</span>
+      <h2 id="edit-title">Your roster</h2>
+      <p class="sh-muted">Swap anyone for another free team member, or leave a place open.</p>
+      <div class="sh-roster">
+        @for (e of edits(); track $index; let i = $index) {
+          <div class="sh-row" [class.sh-row--empty]="!e.personId">
+            <div class="sh-date">{{ monthDay(e.line.start_at) }}<small>{{ dayTime(e.line.start_at) }}</small></div>
+            <div>
+              <div class="sh-who">
+                <span class="sh-role">{{ e.line.role }}</span>
+                <b>{{ nameOf(e) ?? 'Open' }}</b>
+              </div>
+              @if (options(e).length) {
+                <label class="swap">
+                  <sh-icon name="swap" />
+                  <span class="visually-hidden">Who serves as {{ e.line.role }} on {{ monthDay(e.line.start_at) }}</span>
+                  <select [value]="e.personId ?? ''" (change)="swap(i, $any($event.target).value)">
+                    @for (o of options(e); track o.id) {
+                      <option [value]="o.id">{{ o.name }}</option>
+                    }
+                    <option value="">Leave open</option>
+                  </select>
+                </label>
+              } @else {
+                <div class="sh-flag"><sh-icon name="alert" /><span>{{ e.line.reason }}</span></div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      <div class="sh-notice sh-notice--info">
+        <sh-icon name="lock" />
+        <span>Approving records this roster. Reminders aren't sent until you approve them too.</span>
+      </div>
+      <div class="sh-actions">
+        <button type="button" class="sh-btn sh-btn--primary" [disabled]="working() || !toApprove().length" (click)="approve()">
+          <sh-icon name="check" />Approve roster
+        </button>
+        <button type="button" class="sh-btn sh-btn--quiet" (click)="editing.set(false)">Back to the suggestion</button>
+      </div>
+    </section>
+  }
+
+  <!-- The roster as it stands this week -->
+  <section class="sh-card" aria-labelledby="current-title">
+    <h2 id="current-title">This week as planned</h2>
+    @if (!current()) {
+      <div role="status" class="stack"><div class="sh-skel"></div><div class="sh-skel short"></div></div>
+    } @else {
+      @for (g of current()!.gatherings; track g.gathering_id) {
+        <h3 class="sh-group">{{ g.name }} · {{ monthDay(g.start_at) }}</h3>
+        <div class="sh-roster">
+          @for (role of g.roles; track role.role_id) {
+            @for (p of role.people; track p.assignment_id) {
+              <div class="sh-row">
+                <div class="sh-date">{{ monthDay(g.start_at) }}<small>{{ dayTime(g.start_at) }}</small></div>
+                <div>
+                  <div class="sh-who">
+                    <span class="sh-role">{{ role.role }}</span>
+                    <b>{{ p.name }}</b>
+                    <sh-experience [level]="p.experience" />
+                  </div>
+                  @for (flag of p.flags; track flag) {
+                    <div class="sh-flag"><sh-icon name="alert" /><span><strong>{{ p.name.split(' ')[0] }}:</strong> {{ flagText[flag] ?? flag }}</span></div>
+                  }
+                </div>
+              </div>
+            }
+            @if (role.missing > 0) {
+              <div class="sh-row sh-row--empty">
+                <div class="sh-date">{{ monthDay(g.start_at) }}<small>{{ dayTime(g.start_at) }}</small></div>
+                <div>
+                  <div class="sh-who"><span class="sh-role">{{ role.role }}</span><b>Open</b></div>
+                  <div class="sh-flag"><sh-icon name="alert" /><span>{{ role.missing }} more needed.</span></div>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      } @empty {
+        <p class="sh-muted">Nothing is scheduled for this ministry in the next 7 days.</p>
+      }
+    }
+  </section>
+</div>

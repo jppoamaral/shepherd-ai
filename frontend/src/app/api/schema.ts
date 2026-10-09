@@ -496,6 +496,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/churches/{church_id}/ministries/{ministry_id}/suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Suggestion
+         * @description Shepherd's suggested roster for the ministry's drafting horizon. Nothing is saved.
+         */
+        get: operations["get_suggestion_churches__church_id__ministries__ministry_id__suggestion_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/churches/{church_id}/ministries/{ministry_id}/suggestion/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve
+         * @description Approve the roster as the leader edited it. Recorded through the approval queue.
+         */
+        post: operations["approve_churches__church_id__ministries__ministry_id__suggestion_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1306,6 +1346,104 @@ export interface components {
             people: components["schemas"]["RosterPerson"][];
             /** Missing */
             missing: number;
+        };
+        /** SuggestedAssignment */
+        SuggestedAssignment: {
+            /**
+             * Gathering Id
+             * Format: uuid
+             */
+            gathering_id: string;
+            /**
+             * Role Id
+             * Format: uuid
+             */
+            role_id: string;
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** SuggestionAlternative */
+        SuggestionAlternative: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Name */
+            name: string;
+            experience: components["schemas"]["Experience"];
+        };
+        /** SuggestionApprove */
+        SuggestionApprove: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Assignments */
+            assignments: components["schemas"]["SuggestedAssignment"][];
+        };
+        /** SuggestionLine */
+        SuggestionLine: {
+            /**
+             * Gathering Id
+             * Format: uuid
+             */
+            gathering_id: string;
+            /** Gathering */
+            gathering: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * Role Id
+             * Format: uuid
+             */
+            role_id: string;
+            /** Role */
+            role: string;
+            /** Person Id */
+            person_id: string | null;
+            /** Name */
+            name: string | null;
+            experience: components["schemas"]["Experience"] | null;
+            /** Reason */
+            reason: string;
+            /** Flags */
+            flags: string[];
+            /** Alternatives */
+            alternatives: components["schemas"]["SuggestionAlternative"][];
+        };
+        /** SuggestionOut */
+        SuggestionOut: {
+            /**
+             * Ministry Id
+             * Format: uuid
+             */
+            ministry_id: string;
+            /** Ministry */
+            ministry: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Lines */
+            lines: components["schemas"]["SuggestionLine"][];
+            /** Open */
+            open: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -2214,6 +2352,77 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_suggestion_churches__church_id__ministries__ministry_id__suggestion_get: {
+        parameters: {
+            query?: {
+                /** @description Church-local date; defaults to today */
+                start?: string | null;
+            };
+            header?: never;
+            path: {
+                ministry_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_churches__church_id__ministries__ministry_id__suggestion_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ministry_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionApprove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalOut"];
+                };
             };
             /** @description Validation Error */
             422: {
