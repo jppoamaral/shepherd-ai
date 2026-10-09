@@ -103,6 +103,9 @@ def test_only_known_endpoints_write(client: TestClient) -> None:
         ("post", "/churches/{church_id}/proposals/{proposal_id}/reject"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/intake"),
         ("post", "/churches/{church_id}/intake/{intake_id}/answers"),
+        ("post", "/churches/{church_id}/findings/{finding_id}/huddle"),
+        ("post", "/churches/{church_id}/huddles/{huddle_id}/choose"),
+        ("post", "/churches/{church_id}/huddles/{huddle_id}/resolve"),
     }
 
 

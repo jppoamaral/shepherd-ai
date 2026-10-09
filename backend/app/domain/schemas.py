@@ -9,8 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.domain.enums import (
     AssignmentStatus,
     Experience,
+    FindingStatus,
     FindingType,
     GatheringKind,
+    HuddleStatus,
     IntakeStatus,
     MembershipStatus,
     OnboardingStatus,
@@ -267,3 +269,60 @@ class RosterOut(BaseModel):
     start: date
     end: date
     gatherings: list[RosterGathering]
+
+
+class HuddleLeader(BaseModel):
+    person_id: uuid.UUID
+    name: str
+
+
+class HuddleSlot(BaseModel):
+    id: str
+    start: datetime
+    end: datetime
+    label: str
+
+
+class HuddleSide(BaseModel):
+    ministry: str
+    role: str
+    gathering: str
+    leader: str
+    replacement: str | None  # one suggestion from that leader's own team; the leaders decide
+    replacement_note: str
+
+
+class HuddleAgenda(BaseModel):
+    title: str
+    volunteer: str  # who the conflict is about; never invited
+    overlap: str
+    sides: list[HuddleSide]
+
+
+class HuddleOut(BaseModel):
+    id: uuid.UUID
+    finding_id: uuid.UUID
+    status: HuddleStatus
+    leaders: list[HuddleLeader]
+    slots: list[HuddleSlot]
+    chosen_slot: HuddleSlot | None
+    no_common_slot: bool
+    nearest_options: list[str]
+    agenda: HuddleAgenda
+    agenda_text: str
+    outcome: str | None
+    finding_status: FindingStatus
+
+
+class HuddleStart(BaseModel):
+    person_id: uuid.UUID
+
+
+class HuddleChoose(BaseModel):
+    person_id: uuid.UUID
+    slot_id: str
+
+
+class HuddleResolve(BaseModel):
+    person_id: uuid.UUID
+    outcome: str = Field(min_length=1, max_length=2_000)

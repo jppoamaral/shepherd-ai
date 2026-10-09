@@ -51,6 +51,9 @@ class Huddle(TenantMixin, CreatedAtMixin, Base):
     status: Mapped[HuddleStatus] = mapped_column(
         enum_column(HuddleStatus), default=HuddleStatus.OFFERED
     )
+    # Structured agenda (people, gathering, overlap, sides with suggested replacements)
+    # and, when no slot is shared, the nearest options.
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
 
 
 class MemoryItem(TenantMixin, CreatedAtMixin, Base):

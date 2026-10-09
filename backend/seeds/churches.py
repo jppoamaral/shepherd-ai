@@ -129,6 +129,7 @@ def grace_community() -> ChurchSeed:
                 availability=[
                     AvailabilitySeed(Weekday.MONDAY, time(9, 0), time(11, 0)),
                     AvailabilitySeed(Weekday.THURSDAY, time(12, 0), time(13, 30)),
+                    AvailabilitySeed(Weekday.SATURDAY, time(9, 30), time(11, 30)),
                 ],
             ),
             PersonSeed(
@@ -139,6 +140,7 @@ def grace_community() -> ChurchSeed:
                 availability=[
                     AvailabilitySeed(Weekday.TUESDAY, time(18, 0), time(20, 0)),
                     AvailabilitySeed(Weekday.THURSDAY, time(12, 0), time(13, 0)),
+                    AvailabilitySeed(Weekday.SATURDAY, time(10, 0), time(12, 0)),
                 ],
             ),
             PersonSeed(
