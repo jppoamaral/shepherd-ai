@@ -1,0 +1,150 @@
+<a class="sh-btn sh-btn--quiet back" routerLink="/"><sh-icon name="back" />Back to Home</a>
+
+<section class="page-head">
+  <h1 class="t-h1">Conflict huddle</h1>
+  @if (huddle(); as h) {
+    <p>{{ volunteer() }} is booked twice on {{ when() }}. A short chat between leaders can sort it out.</p>
+    <ol class="steps" aria-label="Progress">
+      <li [attr.aria-current]="step() <= 1 ? 'step' : null" [class.done]="step() > 1"><span>1</span>Review</li>
+      <li [attr.aria-current]="step() === 2 ? 'step' : null" [class.done]="step() > 2"><span>2</span>Time picked</li>
+      <li [attr.aria-current]="step() >= 3 ? 'step' : null" [class.done]="step() > 3"><span>3</span>Record</li>
+    </ol>
+  }
+</section>
+
+@if (error()) {
+  <div class="sh-notice sh-notice--error" role="alert"><sh-icon name="alert" /><span>{{ error() }}</span></div>
+}
+
+@if (!huddle() && !error()) {
+  <div class="sh-card" role="status" aria-label="Finding a time">
+    <div class="sh-skel"></div><div class="sh-skel"></div><div class="sh-skel short"></div>
+  </div>
+}
+
+@if (huddle(); as h) {
+  <div class="two-cols">
+    <div class="stack">
+      <section class="sh-card" aria-labelledby="who">
+        <h2 id="who">Who's involved</h2>
+        @for (leader of h.leaders; track leader.person_id) {
+          <div class="row person">
+            <span class="avatar" [class.avatar--forest]="leader.person_id === session.personId()">{{ initials(leader.name) }}</span>
+            <span class="person-text">
+              <b>{{ leader.name }}{{ leader.person_id === session.personId() ? ' (you)' : '' }}</b>
+              <span class="sh-cap">{{ ministryOf(leader.person_id) }}</span>
+            </span>
+          </div>
+        }
+        <div class="sh-bubble gathering">
+          <sh-icon name="calendar" />
+          <span><strong>{{ h.agenda.overlap }}</strong><br />{{ volunteer() }} is on both rosters.</span>
+        </div>
+        <div class="sh-note"><sh-icon name="lock" />{{ volunteerFirst() }} isn't invited. This is a talk between leaders.</div>
+      </section>
+
+      <section class="sh-card" aria-labelledby="sugg">
+        <h2 id="sugg">Shepherd's suggestions</h2>
+        @for (side of h.agenda.sides; track side.ministry) {
+          <div class="suggestion">
+            <span class="sh-sugg-label"><span class="sh-spark"><sh-icon name="spark" /></span>Suggestion · for {{ side.ministry }}</span>
+            @if (side.replacement) {
+              <p><b>{{ side.replacement }}</b>, free that day</p>
+              <p class="sh-muted">Could take {{ volunteerFirst() }}'s place as {{ side.role }} on {{ side.ministry }}. Free at that time and not blocked out.</p>
+            } @else {
+              <p><b>No other {{ side.role }} is free that day</b></p>
+              <p class="sh-muted">{{ volunteerFirst() }} staying in {{ side.ministry }} is one option.</p>
+            }
+          </div>
+        }
+        <p class="sh-cap">These are suggestions only. You and {{ other()?.name?.split(' ')?.[0] }} decide.</p>
+      </section>
+    </div>
+
+    <div class="stack">
+      @if (h.status === 'offered') {
+        <section class="sh-card" aria-labelledby="time">
+          <h2 id="time">15 minutes that work for both of you</h2>
+          @if (h.no_common_slot) {
+            <div class="sh-notice sh-notice--info">
+              <sh-icon name="clock" />
+              <div>
+                <strong>No time works for both of you before the service</strong>
+                Here are your nearest free times. You can also settle it your own way.
+                <ul class="nearest">
+                  @for (option of h.nearest_options; track option) { <li>{{ option }}</li> }
+                </ul>
+              </div>
+            </div>
+          } @else {
+            <div class="sh-slots" role="radiogroup" aria-label="15-minute times">
+              @for (slot of h.slots; track slot.id) {
+                <button type="button" class="sh-slot" role="radio" [attr.aria-checked]="picked() === slot.id"
+                        [attr.aria-pressed]="picked() === slot.id" (click)="picked.set(slot.id)">
+                  {{ slot.label.split(' to ')[0] }}<small>15 min</small>
+                </button>
+              }
+            </div>
+            <button type="button" class="sh-btn sh-btn--primary" [disabled]="!picked() || working()" (click)="confirm()">
+              Confirm time
+            </button>
+            <p class="sh-cap">{{ other()?.name }} gets the time 1:1 and can pick another.</p>
+          }
+        </section>
+      }
+
+      @if (h.chosen_slot; as slot) {
+        <section class="sh-card" aria-labelledby="confirmed">
+          <span class="sh-tag sh-tag--ok"><sh-icon name="check" />Time confirmed</span>
+          <h2 id="confirmed">{{ slot.label }}, with {{ other()?.name }}</h2>
+          <ol class="agenda">
+            <li><b>Where {{ volunteerFirst() }} can serve on {{ when() }}</b><span class="sh-cap">3 min</span></li>
+            <li>
+              <b>Options:
+                @for (side of h.agenda.sides; track side.ministry; let last = $last) {
+                  {{ side.replacement ? side.replacement + ' for ' + side.ministry : volunteerFirst() + ' stays in ' + side.ministry }}{{ last ? ', or another plan' : ', ' }}
+                }
+              </b><span class="sh-cap">8 min</span>
+            </li>
+            <li><b>Who tells {{ volunteerFirst() }}, and how</b><span class="sh-cap">4 min</span></li>
+          </ol>
+          <p class="sh-muted">A short, neutral agenda. The aim is a plan that works for both ministries and for {{ volunteerFirst() }}.</p>
+        </section>
+      }
+
+      @if (h.status === 'scheduled' || h.status === 'offered' && h.no_common_slot) {
+        <section class="sh-card" aria-labelledby="record">
+          <h2 id="record">Record what you decided</h2>
+          <p class="sh-muted">Do this after your talk. Shepherd keeps one honest record of who serves where.</p>
+          <div class="choices" role="radiogroup" aria-label="What you decided">
+            @for (option of options(); track option) {
+              <button type="button" class="sh-slot choice" role="radio" [attr.aria-checked]="decision() === option"
+                      [attr.aria-pressed]="decision() === option" (click)="decision.set(option)">{{ option }}</button>
+            }
+          </div>
+          <label class="stack">
+            <span class="t-label">Short note, if you like</span>
+            <textarea rows="2" [(ngModel)]="note" maxlength="300"></textarea>
+          </label>
+          <button type="button" class="sh-btn sh-btn--primary" [disabled]="!decision() || working()" (click)="record()">
+            {{ decision() ? 'Record decision' : 'Choose one to record it' }}
+          </button>
+        </section>
+      }
+
+      @if (h.status === 'resolved') {
+        <section class="sh-card" aria-labelledby="done" role="status">
+          <span class="sh-tag sh-tag--ok"><sh-icon name="check" />Recorded</span>
+          <h2 id="done">{{ h.outcome }}</h2>
+          <p>Checks ran again. Shepherd didn't move anyone: update the roster when you're ready, and the double booking clears.</p>
+          <a class="sh-btn sh-btn--secondary" routerLink="/rosters">Go to rosters</a>
+        </section>
+      }
+
+      <div class="sh-notice sh-notice--info">
+        <sh-icon name="lock" />
+        <span>Nothing is recorded or sent until you choose and approve. The volunteer isn't invited to a huddle.</span>
+      </div>
+    </div>
+  </div>
+}
