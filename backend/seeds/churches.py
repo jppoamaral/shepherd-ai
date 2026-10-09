@@ -216,6 +216,7 @@ def grace_community() -> ChurchSeed:
             AssignmentSeed("david", WORSHIP, "Worship Leader", "sun_0930"),
             AssignmentSeed("david", WORSHIP, "Worship Leader", "sun_1100"),
         ],
+        fill_rosters=[(WORSHIP, "sun_0930"), (WORSHIP, "sun_1100"), (WORSHIP, "wed_prayer")],
         memories=[
             MemorySeed(
                 KIDS,

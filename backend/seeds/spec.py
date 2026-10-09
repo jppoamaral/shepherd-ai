@@ -106,3 +106,6 @@ class ChurchSeed:
     generated_preferences: list[tuple[int, Period]] = field(default_factory=list)
     warning_routing: dict[str, list[str]] = field(default_factory=dict)
     memories: list[MemorySeed] = field(default_factory=list)
+    # (ministry, gathering type key): fill the rest of that roster in the demo week from
+    # the team, so the demo's warnings are the seeded stories rather than empty slots.
+    fill_rosters: list[tuple[str, str]] = field(default_factory=list)

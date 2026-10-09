@@ -56,15 +56,17 @@ def test_sarah_sees_annas_double_booking_and_overload_but_not_hannahs(
     assert (kids_930["ministry"], kids_930["needed"], kids_930["filled"]) == ("Kids", 4, 5)
 
 
-def test_david_sees_both_double_bookings_and_worship_gaps(client: TestClient, grace: dict) -> None:
+def test_david_sees_both_double_bookings_first(client: TestClient, grace: dict) -> None:
     brief = briefing_for(client, grace, "David Morales")
+    first_two = [i["type"] for i in brief["items"][:2]]
+    assert first_two == [
+        "overlap",
+        "overlap",
+    ]  # warnings first, double bookings before anything else
     overlaps = sorted(i["people"][0] for i in brief["items"] if i["type"] == "overlap")
     assert overlaps == ["Anna Parker", "Hannah Wright"]
-    assert any(
-        i["type"] == "below_minimum" and i["text"].startswith("Worship needs")
-        for i in brief["items"]
-    )
-    assert not any(i["text"].startswith("Kids needs") for i in brief["items"])
+    # Worship's demo week is fully staffed, so no gaps compete with the stories.
+    assert not any(i["type"] == "below_minimum" for i in brief["items"])
 
 
 def test_mike_hears_about_media_not_kids(client: TestClient, grace: dict) -> None:

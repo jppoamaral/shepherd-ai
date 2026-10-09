@@ -67,12 +67,11 @@ def test_below_minimum_only_where_a_roster_has_started(
 ) -> None:
     findings = of_type(run_checks(session, grace_id, *WEEK), FindingType.BELOW_MINIMUM)
     assert findings
-    assert any(
-        f.details["text"].startswith("Worship needs 2 Vocals at Sunday 9:30 Service")
-        for f in findings
-    )
-    # Kids at 9:30 is fully staffed in the demo seed, and untouched gatherings aren't "gaps".
-    assert not any(f.details["text"].startswith("Kids needs") for f in findings)
+    # Media's Youth roster has started (Hannah on Sound) but nobody is on Slides.
+    assert [f.details["text"] for f in findings] == [
+        "Media needs 1 Slides at Wednesday Youth (Wed 14 Oct 7:30 PM) and has 0."
+    ]
+    # Fully staffed rosters and untouched gatherings aren't "gaps".
 
 
 def test_rerunning_is_idempotent_and_fixed_conflicts_resolve(

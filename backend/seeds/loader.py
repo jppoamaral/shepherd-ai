@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    Assignment,
     Blockout,
     Church,
     Gathering,
@@ -35,6 +36,7 @@ from app.db.repositories.audit import AuditLogRepository
 from app.domain.enums import (
     AssignmentSource,
     AssignmentStatus,
+    Experience,
     ProfileStatus,
     Recurrence,
     StatedBy,
@@ -42,7 +44,7 @@ from app.domain.enums import (
 from app.services.gatherings import ensure_gatherings
 from app.services.memory import propose_memory
 from seeds.generate import generate_volunteers
-from seeds.spec import ChurchSeed
+from seeds.spec import ChurchSeed, PersonSeed
 
 GATHERING_HORIZON_WEEKS = 16
 
@@ -235,6 +237,19 @@ def load_church(session: Session, spec: ChurchSeed, today: date) -> tuple[Church
             source=AssignmentSource.LEADER,
         )
 
+    _fill_rosters(
+        session,
+        spec,
+        cid,
+        people_specs,
+        people,
+        ministries,
+        roles,
+        gathering_types,
+        now_local,
+        today,
+    )
+
     for memory in spec.memories:
         about = people[memory.about].id if memory.about else None
         if memory.confirmed_by:
@@ -269,3 +284,92 @@ def load_church(session: Session, spec: ChurchSeed, today: date) -> tuple[Church
     )
     session.flush()
     return church, True
+
+
+EXPERIENCE_ORDER = {Experience.VETERAN: 0, Experience.EXPERIENCED: 1, Experience.NEW: 2}
+
+
+def _fill_rosters(
+    session: Session,
+    spec: ChurchSeed,
+    cid: uuid.UUID,
+    people_specs: list[PersonSeed],
+    people: dict[str, Person],
+    ministries: dict[str, Ministry],
+    roles: dict[tuple[str, str], Role],
+    gathering_types: dict[str, GatheringType],
+    week_start: datetime,
+    today: date,
+) -> None:
+    """Fill demo-week rosters up to their minimums, deterministically.
+
+    Picks the most experienced free team members first, at most one fill per person
+    in the week, never at an overlapping time or on a blockout date, so the only
+    warnings in the demo are the seeded stories (and genuine leftovers).
+    """
+    if not spec.fill_rosters:
+        return
+    week_end = week_start + timedelta(days=7)
+    rows = session.execute(
+        select(Assignment.person_id, Assignment.gathering_id, Assignment.role_id)
+        .join(Gathering, Gathering.id == Assignment.gathering_id)
+        .where(
+            Assignment.church_id == cid,
+            Gathering.start_at >= week_start,
+            Gathering.start_at < week_end,
+        )
+    ).all()
+    serving: set[uuid.UUID] = set()
+    filled: dict[tuple[uuid.UUID, uuid.UUID], int] = {}
+    for person_id, gathering_id, role_id in rows:
+        serving.add(person_id)
+        filled[(gathering_id, role_id)] = filled.get((gathering_id, role_id), 0) + 1
+    blocked = {
+        p.key: [
+            (today + timedelta(days=b.start_offset_days), today + timedelta(days=b.end_offset_days))
+            for b in p.blockouts
+        ]
+        for p in people_specs
+    }
+    minimums = {(m.name, r.name): r.minimums for m in spec.ministries for r in m.roles}
+    writer = AssignmentWriter(session, cid)
+
+    for ministry_name, gt_key in spec.fill_rosters:
+        gathering = session.scalar(
+            select(Gathering)
+            .where(
+                Gathering.church_id == cid,
+                Gathering.gathering_type_id == gathering_types[gt_key].id,
+                Gathering.start_at >= week_start,
+            )
+            .order_by(Gathering.start_at)
+            .limit(1)
+        )
+        assert gathering is not None
+        local_day = gathering.start_at.astimezone(week_start.tzinfo).date()
+        for (m_name, role_name), mins in minimums.items():
+            if m_name != ministry_name or not mins.get(gt_key):
+                continue
+            role = roles[(m_name, role_name)]
+            candidates = sorted(
+                (p for p in people_specs if role_name in p.skills.get(m_name, {})),
+                key=lambda p: (EXPERIENCE_ORDER[p.skills[m_name][role_name]], p.name),
+            )
+            for candidate in candidates:
+                if filled.get((gathering.id, role.id), 0) >= mins[gt_key]:
+                    break
+                person = people[candidate.key]
+                if person.id in serving or any(
+                    a <= local_day <= b for a, b in blocked[candidate.key]
+                ):
+                    continue  # one fill per person per week; never on a blockout date
+                writer.create(
+                    gathering_id=gathering.id,
+                    ministry_id=ministries[m_name].id,
+                    role_id=role.id,
+                    person_id=person.id,
+                    status=AssignmentStatus.APPROVED,
+                    source=AssignmentSource.LEADER,
+                )
+                serving.add(person.id)
+                filled[(gathering.id, role.id)] = filled.get((gathering.id, role.id), 0) + 1
