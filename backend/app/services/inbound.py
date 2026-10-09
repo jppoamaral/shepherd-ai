@@ -30,6 +30,7 @@ from app.db.models import (
     Church,
     Conversation,
     Gathering,
+    LeaderNotice,
     Membership,
     Message,
     Ministry,
@@ -37,6 +38,7 @@ from app.db.models import (
     Person,
     Preference,
     Role,
+    RoleMinimum,
     RoleSkill,
 )
 from app.db.repositories.notices import NoticeWriter
@@ -294,6 +296,7 @@ def _decline(ctx: Inbound, r: Reminder, note: str | None) -> list[BotReply]:
         "declined",
         f"{ctx.person.name} can't make {r.start:%a} {when} ({r.ministry}, {r.role}).",
         note,
+        r.assignment.id,
     )
     return [
         _say(ctx, f"Thank you for letting me know. I've told your leader you can't make {when}.")
@@ -322,6 +325,7 @@ def _cant_commit(ctx: Inbound, r: Reminder) -> list[BotReply]:
         "cant_commit",
         f"{ctx.person.name} can't commit to {r.start:%a} {when} yet ({r.ministry}, {r.role}). "
         "Not confirmed.",
+        assignment_id=r.assignment.id,
     )
     return [_say(ctx, f"Okay, I've let your leader know you can't commit for {when}.")]
 
@@ -440,10 +444,20 @@ def _approve(ctx: Inbound, kind: str, payload: dict[str, Any]) -> None:
 
 
 def _tell_leaders(
-    ctx: Inbound, ministry_id: uuid.UUID, kind: str, text: str, note: str | None = None
+    ctx: Inbound,
+    ministry_id: uuid.UUID,
+    kind: str,
+    text: str,
+    note: str | None = None,
+    assignment_id: uuid.UUID | None = None,
 ) -> None:
     NoticeWriter(ctx.session, ctx.church.id).add(
-        ministry_id=ministry_id, about_person_id=ctx.person.id, kind=kind, text=text, note=note
+        ministry_id=ministry_id,
+        about_person_id=ctx.person.id,
+        kind=kind,
+        text=text,
+        note=note,
+        assignment_id=assignment_id,
     )
 
 
@@ -543,3 +557,54 @@ def _short(d: date) -> str:
 
 def _and(items: list[str]) -> str:
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def notice_settled(session: Session, notice: LeaderNotice) -> tuple[bool, str | None]:
+    """Whether the place a notice is about has been dealt with since, and how.
+
+    A decline is settled once the role is back at its minimum for that gathering; "can't
+    commit" once the volunteer answers the reminder after all.
+    """
+    if notice.assignment_id is None:
+        return False, None
+    a = session.get(Assignment, notice.assignment_id)
+    if a is None:
+        return False, None
+    first = notice.text.split(" ")[0]
+    if notice.kind == "cant_commit":
+        if a.status is AssignmentStatus.CONFIRMED:
+            return True, f"{first} has since said yes."
+        if a.status is AssignmentStatus.DECLINED:
+            return True, f"{first} has since replied: can't make it."
+        return False, None
+    if notice.kind != "declined":
+        return False, None
+    gathering = session.get_one(Gathering, a.gathering_id)
+    minimum = (
+        session.scalar(
+            select(RoleMinimum.minimum).where(
+                RoleMinimum.church_id == a.church_id,
+                RoleMinimum.role_id == a.role_id,
+                RoleMinimum.gathering_type_id == gathering.gathering_type_id,
+            )
+        )
+        or 0
+    )
+    serving = session.execute(
+        select(Person.name, Assignment.created_at)
+        .join(Person, Person.id == Assignment.person_id)
+        .where(
+            Assignment.church_id == a.church_id,
+            Assignment.gathering_id == a.gathering_id,
+            Assignment.role_id == a.role_id,
+            Assignment.status != AssignmentStatus.DECLINED,
+        )
+    ).all()
+    if len(serving) < minimum:
+        return False, None
+    newcomers = [name for name, created in serving if created >= notice.created_at]
+    return True, (
+        f"Covered: {_and(newcomers)} {'is' if len(newcomers) == 1 else 'are'} in."
+        if newcomers
+        else "Covered."
+    )

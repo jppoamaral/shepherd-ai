@@ -33,9 +33,12 @@
       <article class="sh-card" aria-labelledby="notice-{{ n.id }}">
         <div class="sh-brief-head">
           <span class="sh-tag sh-tag--attn"><sh-icon name="chat" />From {{ first(n.about) }}'s chat</span>
-          <span class="sh-cap">{{ n.kind === 'declined' || n.kind === 'cant_commit' ? 'Needs you' : 'Good to know' }}</span>
+          <span class="sh-cap">{{ needsYouNotice(n) ? 'Needs you' : 'Good to know' }}</span>
         </div>
         <h3 [id]="'notice-' + n.id">{{ n.text }}</h3>
+        @if (n.update) {
+          <p class="sh-tag sh-tag--ok"><sh-icon name="check" />{{ n.update }}</p>
+        }
         @if (n.note) {
           <div class="sh-bubble">“{{ n.note }}”</div>
           <p class="sh-note"><sh-icon name="lock" />{{ first(n.about) }} asked Shepherd to pass this on. It isn't kept: dismissing deletes it.</p>
@@ -84,8 +87,12 @@
             @if (item.fill; as f) {
               <p>{{ f.name }} ({{ experienceLabel[f.experience] }}) is free then and not blocked out.</p>
             }
+            @if (item.fill && !canApprove()) {
+              <p class="sh-note"><sh-icon name="clock" />{{ approverNames() }} can put them in. Nothing changes until an approver does.</p>
+            }
             <div class="sh-actions">
-              @if (item.fill; as f) {
+              @if (item.fill && canApprove()) {
+                @let f = item.fill;
                 <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === item.finding_id" (click)="fill(item, f)"
                         [attr.aria-label]="'Put ' + f.name + ' in as ' + f.role">
                   Put {{ first(f.name) }} in
@@ -142,11 +149,15 @@
         </div>
         <h3>{{ p.title }}</h3>
         <div class="sh-bubble summary">{{ p.summary }}</div>
-        <div class="sh-actions">
-          <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === p.id" (click)="approveRoster(p)">
-            Approve roster
-          </button>
-        </div>
+        @if (canApprove()) {
+          <div class="sh-actions">
+            <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === p.id" (click)="approveRoster(p)">
+              Approve roster
+            </button>
+          </div>
+        } @else {
+          <p class="sh-note"><sh-icon name="clock" />Waiting for {{ approverNames() }} to approve.</p>
+        }
       </article>
     }
 
@@ -170,6 +181,8 @@
         <div class="sh-actions">
           @if (count(p) === 0) {
             <p class="sh-muted">Nobody on this reminder list is still on the roster.</p>
+          } @else if (!canApprove()) {
+            <p class="sh-note"><sh-icon name="clock" />Waiting for {{ approverNames() }} to approve and send.</p>
           } @else if (reviewing() === p.id) {
             <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === p.id" (click)="sendReminders(p)">
               <sh-icon name="send" />Send {{ count(p) }} {{ count(p) === 1 ? 'reminder' : 'reminders' }}
@@ -195,21 +208,5 @@
       </article>
     }
 
-    <!-- SAMPLE: people not connected to chat yet (later milestone) -->
-    @if (showSamples()) {
-      <div class="sh-notice sh-notice--info">
-        <sh-icon name="link" />
-        <div>
-          <strong>2 people aren't connected yet</strong>
-          They can't get chat messages. Message them yourself.
-          <div class="sh-actions retry">
-            <button type="button" class="sh-btn sh-btn--secondary"
-                    (click)="copySample('Hi, a friendly reminder that you are serving with Kids this Sunday at 9:30.')">
-              <sh-icon name="copy" />Copy reminder
-            </button>
-          </div>
-        </div>
-      </div>
-    }
   </section>
 </div>

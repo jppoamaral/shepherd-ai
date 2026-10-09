@@ -100,10 +100,15 @@
         <sh-icon name="lock" />
         <span>Approving records this roster. Reminders aren't sent until you approve them too.</span>
       </div>
+      @if (!session.ministry()?.can_approve) {
+        <p class="sh-note"><sh-icon name="clock" />Only {{ session.ministry()?.ministry }}'s approver can approve this roster.</p>
+      }
       <div class="sh-actions">
-        <button type="button" class="sh-btn sh-btn--primary" [disabled]="working() || !toApprove().length" (click)="approve()">
-          <sh-icon name="check" />Approve roster
-        </button>
+        @if (session.ministry()?.can_approve) {
+          <button type="button" class="sh-btn sh-btn--primary" [disabled]="working() || !toApprove().length" (click)="approve()">
+            <sh-icon name="check" />Approve roster
+          </button>
+        }
         <button type="button" class="sh-btn sh-btn--quiet" (click)="editing.set(false)">Back to the suggestion</button>
       </div>
     </section>

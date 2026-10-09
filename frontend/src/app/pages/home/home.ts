@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
-import type { Briefing, BriefingItem, GapFill, Notice, Proposal } from '../../api/types';
+import type { Briefing, BriefingItem, GapFill, Leader, Notice, Proposal } from '../../api/types';
 import { Session } from '../../core/session';
 import { churchToday, longDate, monthDay } from '../../core/format';
 import { Icon } from '../../ui/icon';
@@ -27,6 +27,16 @@ export class HomePage {
   protected readonly busy = signal<string | null>(null);
   protected readonly queueMessage = signal('');
   protected readonly notices = signal<Notice[]>([]);
+  protected readonly leaders = signal<Leader[]>([]);
+  /** Only a ministry's approvers can approve its rosters and send its reminders. */
+  protected readonly canApprove = computed(() => !!this.session.ministry()?.can_approve);
+  protected readonly approverNames = computed(() => {
+    const ministryId = this.session.ministryId();
+    const names = this.leaders()
+      .filter((l) => l.ministries.some((m) => m.ministry_id === ministryId && m.can_approve))
+      .map((l) => l.name);
+    return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}` : (names[0] ?? 'an approver');
+  });
   /** Which reminders card is expanded to review every message. */
   protected readonly reviewing = signal<string | null>(null);
 
@@ -49,7 +59,7 @@ export class HomePage {
     this.notices().filter((n) => n.ministry_id === this.session.ministryId()),
   );
 
-  // SAMPLE: the absence check-in and unconnected people aren't
+  // SAMPLE: the absence check-in isn't
   // produced by the backend yet (later milestones). They're shown with fixed sample content
   // for the Kids ministry demo persona, as agreed for the presentation.
   protected readonly showSamples = computed(() => this.session.ministry()?.ministry === 'Kids');
@@ -58,7 +68,7 @@ export class HomePage {
   protected readonly needsYou = computed(
     () =>
       this.items().filter((i) => i.type !== 'load').length +
-      this.myNotices().filter((n) => n.kind === 'declined' || n.kind === 'cant_commit').length +
+      this.myNotices().filter((n) => this.needsYouNotice(n)).length +
       (this.showSamples() && !this.checkInAnswered() ? 1 : 0),
   );
   protected readonly today = computed(() => longDate(churchToday(this.session.state()?.timezone ?? 'UTC')));
@@ -128,6 +138,7 @@ export class HomePage {
           this.busy.set(null);
           this.queueMessage.set(`${fill.name} is on the roster as ${fill.role}.`);
           this.load(this.session.churchId(), this.session.personId());
+          this.checkNotices(); // a decline notice about this place is now covered
         },
         error: (e) => {
           this.busy.set(null);
@@ -141,6 +152,11 @@ export class HomePage {
     this.api.dismissNotice(this.session.churchId(), n.id, this.session.personId()).subscribe(() =>
       this.notices.update((all) => all.filter((x) => x.id !== n.id)),
     );
+  }
+
+  /** A decline or "can't commit" needs the leader until the place is dealt with. */
+  protected needsYouNotice(n: Notice): boolean {
+    return (n.kind === 'declined' || n.kind === 'cant_commit') && !n.settled;
   }
 
   /** How many reminders will actually go out (the server leaves out places that changed). */
@@ -159,10 +175,6 @@ export class HomePage {
 
   protected first(name: string): string {
     return name.split(' ')[0];
-  }
-
-  protected copySample(text: string): void {
-    void navigator.clipboard?.writeText(text).catch(() => undefined);
   }
 
   private decide(p: Proposal, action: 'approve' | 'reject', done: string): void {
@@ -200,6 +212,7 @@ export class HomePage {
     });
     this.api.pendingProposals(churchId).subscribe((p) => this.proposals.set(p));
     this.api.notices(churchId, personId).subscribe((n) => this.notices.set(n));
+    this.api.leaders(churchId).subscribe((l) => this.leaders.set(l));
   }
 
   private checkNotices(): void {

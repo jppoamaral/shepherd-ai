@@ -555,3 +555,7 @@ class NoticeOut(BaseModel):
     text: str
     note: str | None  # the volunteer's own words, shown once
     at: datetime
+    # The place it was about has since been dealt with ("Caleb Baker is in."), so it no
+    # longer needs the leader; it stays until dismissed, as good to know.
+    settled: bool = False
+    update: str | None = None

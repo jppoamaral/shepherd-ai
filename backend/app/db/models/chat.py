@@ -43,10 +43,13 @@ class LeaderNotice(TenantMixin, CreatedAtMixin, Base):
     __extra_args__ = (
         tenant_fk("ministry_id", "ministries"),
         tenant_fk("about_person_id", "people"),
+        tenant_fk("assignment_id", "assignments"),
     )
 
     ministry_id: Mapped[uuid.UUID]
     about_person_id: Mapped[uuid.UUID]
+    # The place it's about (a decline or "can't commit"), so Home can tell once it's covered.
+    assignment_id: Mapped[uuid.UUID | None]
     kind: Mapped[str] = mapped_column(sa.String(32))  # declined, cant_commit, stopped, started
     text: Mapped[str] = mapped_column(sa.Text)
     note: Mapped[str | None] = mapped_column(sa.Text)  # the volunteer's own words, if any

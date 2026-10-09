@@ -24,6 +24,7 @@ class NoticeWriter:
         kind: str,
         text: str,
         note: str | None = None,
+        assignment_id: uuid.UUID | None = None,
     ) -> LeaderNotice:
         notice = LeaderNotice(
             church_id=self.church_id,
@@ -32,6 +33,7 @@ class NoticeWriter:
             kind=kind,
             text=text,
             note=note,
+            assignment_id=assignment_id,
         )
         self.session.add(notice)
         self.session.flush()

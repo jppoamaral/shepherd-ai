@@ -1532,6 +1532,13 @@ export interface components {
              * Format: date-time
              */
             at: string;
+            /**
+             * Settled
+             * @default false
+             */
+            settled: boolean;
+            /** Update */
+            update?: string | null;
         };
         /** OnboardingOut */
         OnboardingOut: {

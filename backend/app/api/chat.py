@@ -36,7 +36,7 @@ from app.domain.schemas import (
 )
 from app.services.briefing import church_today
 from app.services.errors import NotAllowed
-from app.services.inbound import UnknownPerson, handle_inbound
+from app.services.inbound import UnknownPerson, handle_inbound, notice_settled
 from app.services.proposal_text import describe
 from app.services.reminders import draft_reminders
 
@@ -149,18 +149,23 @@ def notices(reader: ReaderDep, person_id: uuid.UUID) -> list[NoticeOut]:
         .where(LeaderNotice.church_id == reader.church_id, LeaderNotice.ministry_id.in_(led))
         .order_by(LeaderNotice.created_at)
     ).all()
-    return [
-        NoticeOut(
-            id=n.id,
-            ministry_id=n.ministry_id,
-            about=name,
-            kind=n.kind,
-            text=n.text,
-            note=n.note,
-            at=n.created_at,
+    out = []
+    for n, name in rows:
+        settled, update = notice_settled(reader.session, n)
+        out.append(
+            NoticeOut(
+                id=n.id,
+                ministry_id=n.ministry_id,
+                about=name,
+                kind=n.kind,
+                text=n.text,
+                note=n.note,
+                at=n.created_at,
+                settled=settled,
+                update=update,
+            )
         )
-        for n, name in rows
-    ]
+    return out
 
 
 @router.delete("/churches/{church_id}/notices/{notice_id}", status_code=status.HTTP_204_NO_CONTENT)

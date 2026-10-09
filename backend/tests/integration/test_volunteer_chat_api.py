@@ -356,3 +356,37 @@ def test_a_reminder_for_a_place_someone_left_is_not_offered_or_sent(
 
     send_kids_reminders(client, grace)
     assert chat(client, grace, "Anna Parker")["messages"] == []
+
+
+def test_a_decline_notice_settles_once_the_place_is_covered(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    send_kids_reminders(client, grace)
+    say(client, grace, "Anna Parker", "2")
+    sarah = grace["leaders"]["Sarah Collins"]
+    notices = f"/churches/{grace['id']}/leaders/{sarah}/notices"
+    (notice,) = client.get(notices).json()
+    assert notice["settled"] is False
+
+    brief = client.get(
+        f"/churches/{grace['id']}/leaders/{sarah}/briefing", params={"start": TODAY.isoformat()}
+    ).json()
+    fill = next(i["fill"] for i in brief["items"] if i["type"] == "below_minimum" and i["fill"])
+    filled = client.post(
+        f"/churches/{grace['id']}/ministries/{grace['kids']}/suggestion/approve",
+        json={
+            "person_id": sarah,
+            "assignments": [
+                {
+                    "gathering_id": fill["gathering_id"],
+                    "role_id": fill["role_id"],
+                    "person_id": fill["person_id"],
+                    "reason": "Filled an open slot.",
+                }
+            ],
+        },
+    )
+    assert filled.status_code == 200, filled.text
+    (notice,) = client.get(notices).json()
+    assert notice["settled"] is True
+    assert notice["update"] == f"Covered: {fill['name']} is in."
