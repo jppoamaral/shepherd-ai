@@ -6,7 +6,7 @@ Every method filters by the `church_id` the repository was built with
 
 import uuid
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -26,7 +26,8 @@ from app.db.models import (
     RoleMinimum,
     RoleSkill,
 )
-from app.domain.enums import ProposalStatus
+from app.domain.enums import MembershipStatus, ProposalStatus
+from app.domain.intake import GatheringRef, IntakeContext, PersonRef, RoleRef
 from app.domain.schemas import (
     ChurchOut,
     GatheringOut,
@@ -203,3 +204,85 @@ class ChurchReader:
             )
             for g, t in rows
         ]
+
+    def ministry_leader(
+        self, ministry_id: uuid.UUID, person_id: uuid.UUID
+    ) -> MinistryLeader | None:
+        """This person's duties for this ministry, if they lead it."""
+        return self.session.scalar(
+            select(MinistryLeader).where(
+                MinistryLeader.church_id == self.church_id,
+                MinistryLeader.ministry_id == ministry_id,
+                MinistryLeader.person_id == person_id,
+            )
+        )
+
+    def intake_context(
+        self, ministry_id: uuid.UUID, today: date | None = None
+    ) -> IntakeContext | None:
+        """The facts a pasted schedule for this ministry is resolved against."""
+        cid = self.church_id
+        ministry = self.session.scalar(
+            select(Ministry).where(Ministry.church_id == cid, Ministry.id == ministry_id)
+        )
+        if ministry is None:
+            return None
+        church = self.session.get_one(Church, cid)
+        tz = ZoneInfo(church.timezone)
+        today = today or datetime.now(tz).date()
+
+        team_ids = set(
+            self.session.scalars(
+                select(Membership.person_id).where(
+                    Membership.church_id == cid,
+                    Membership.ministry_id == ministry_id,
+                    Membership.status == MembershipStatus.ACTIVE,
+                )
+            )
+        )
+        people = self.session.scalars(
+            select(Person).where(Person.church_id == cid).order_by(Person.name)
+        ).all()
+        refs = {p.id: PersonRef(p.id, p.name, tuple(p.nicknames)) for p in people}
+
+        roles = self.session.scalars(
+            select(Role)
+            .where(Role.church_id == cid, Role.ministry_id == ministry_id)
+            .order_by(Role.name)
+        ).all()
+        served_types = set(
+            self.session.scalars(
+                select(RoleMinimum.gathering_type_id).where(
+                    RoleMinimum.church_id == cid,
+                    RoleMinimum.role_id.in_([r.id for r in roles]),
+                    RoleMinimum.minimum > 0,
+                )
+            )
+        )
+        window_start = datetime.combine(today - timedelta(days=14), time(0), tzinfo=tz)
+        gatherings = self.session.execute(
+            select(Gathering, GatheringType.name)
+            .join(GatheringType, GatheringType.id == Gathering.gathering_type_id)
+            .where(
+                Gathering.church_id == cid,
+                GatheringType.church_id == cid,
+                Gathering.start_at >= window_start,
+            )
+            .order_by(Gathering.start_at)
+        ).all()
+
+        return IntakeContext(
+            ministry_id=ministry.id,
+            ministry_name=ministry.name,
+            team=tuple(ref for pid, ref in refs.items() if pid in team_ids),
+            others=tuple(ref for pid, ref in refs.items() if pid not in team_ids),
+            roles=tuple(RoleRef(r.id, r.name) for r in roles),
+            gatherings=tuple(
+                GatheringRef(
+                    g.id, name, g.start_at.astimezone(tz), g.gathering_type_id in served_types
+                )
+                for g, name in gatherings
+            ),
+            today=today,
+            timezone=church.timezone,
+        )

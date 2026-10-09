@@ -13,8 +13,9 @@ APP_DIR = Path(__file__).resolve().parents[2] / "app"
 AGENT_ALLOWED_APP_IMPORTS = (
     "app.db.repositories.reads",
     "app.db.repositories.proposals",
-    # The onboarding agent's own working state (draft + topic), not the church record.
+    # Agents' own working state (onboarding draft, schedule intake), not the record.
     "app.db.repositories.onboarding",
+    "app.db.repositories.intake",
     "app.domain",
     "app.llm",
     "app.config",
@@ -27,8 +28,10 @@ WRITE_REPOSITORIES = (
     "app.db.repositories.assignments",
     "app.db.repositories.messages",
     "app.services.profile_apply",
+    "app.services.roster_apply",
 )
-WRITE_REPOSITORY_IMPORTERS = {"app.services.approval"}
+# ApprovalService, and the handlers it calls, which write through the repositories.
+WRITE_REPOSITORY_IMPORTERS = {"app.services.approval", "app.services.roster_apply"}
 
 
 def module_name(path: Path) -> str:
