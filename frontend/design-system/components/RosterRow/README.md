@@ -1,0 +1,3 @@
+One assignment: date in `t-h3` serif with the weekday and time beneath, then role (small caps), person's name in serif, experience Badge, and a one-line reason in `t-body-sm` `ink-muted`. The reason always explains Shepherd's choice in a sentence ("Rachel with Emily: Rachel is new as a teacher, Emily is a veteran.").
+
+Flags (InlineFlag) sit under the reason. An empty slot keeps its row and shows "Open" in muted italic with its flag, so a gap is visible, never hidden. In an **editable** roster add `.sh-row-actions` with Swap, Remove (and Add on an open slot) as secondary buttons. The consumer provides the data. Nothing here is saved or sent: show "Nothing is sent until you approve" near the final button.

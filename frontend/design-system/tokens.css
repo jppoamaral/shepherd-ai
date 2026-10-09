@@ -1,0 +1,48 @@
+/* Shepherd — generated from tokens.json */
+:root {
+  --forest: #14302A;
+  --cream: #F7F3EA;
+  --sage: #E5ECDF;
+  --gold: #C9A24B;
+  --paper: #FDFBF6;
+  --ink: #44554D;
+  --ink-muted: #5A6A62;
+  --gold-deep: #7A5C14;
+  --gold-soft: #E0BE6A;
+  --forest-deep: #1D3F37;
+  --forest-mid: #2E5A4E;
+  --sage-deep: #C9D8CE;
+  --on-forest: #F7F3EA;
+  --line: #DDD5C0;
+  --line-strong: #6F8077;
+  --focus: #14302A;
+  --status-ok-bg: #E5ECDF;
+  --status-ok-ink: #2F6B4F;
+  --status-attn-bg: #F5E6C0;
+  --status-attn-ink: #7A5C14;
+  --status-alert-bg: #F6E0D8;
+  --status-alert-ink: #9A3B2A;
+  --shadow-card: 0 1px 2px rgba(20,48,42,0.06);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --tap-min: 44px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --font-serif: "EB Garamond", Garamond, Georgia, serif;
+  --font-sans: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.t-display { font-family: var(--font-serif); font-size: 32px; line-height: 36px; font-weight: 500; }
+.t-h1 { font-family: var(--font-serif); font-size: 28px; line-height: 34px; font-weight: 500; }
+.t-h2 { font-family: var(--font-serif); font-size: 22px; line-height: 28px; font-weight: 500; }
+.t-h3 { font-family: var(--font-serif); font-size: 19px; line-height: 26px; font-weight: 600; }
+.t-body { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 400; }
+.t-body-sm { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.t-label { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 600; }
+.t-caption { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 500; }

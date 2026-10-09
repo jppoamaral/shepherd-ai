@@ -1,0 +1,54 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-08T20:08:00Z" },
+  "title": "Shepherd Leader App",
+  "launch": { "view": "canvas" },
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 390, "h": 2300, "title": "Home · briefing (mobile)", "is_interactive": true },
+    "Home-Desktop.dc.html": { "x": 470, "y": 0, "w": 1280, "h": 1320, "title": "Home · briefing (desktop)", "expand": "fill" },
+    "Home-Empty-Mobile.dc.html": { "x": 1830, "y": 0, "w": 390, "h": 1080, "title": "Home · all clear (mobile)" },
+    "Send-Error-Mobile.dc.html": { "x": 2300, "y": 0, "w": 390, "h": 1200, "title": "Review and send · 1 failed (mobile)" },
+
+    "Roster-Mobile.dc.html": { "x": 0, "y": 2750, "w": 390, "h": 1750, "title": "Rosters · two paths (mobile)", "is_interactive": true },
+    "Roster-Edit-Mobile.dc.html": { "x": 470, "y": 2750, "w": 390, "h": 2150, "title": "Rosters · editing (mobile)" },
+    "Roster-Loading-Mobile.dc.html": { "x": 940, "y": 2750, "w": 390, "h": 1060, "title": "Rosters · drafting (mobile)" },
+    "Roster-Desktop.dc.html": { "x": 1410, "y": 2750, "w": 1280, "h": 1400, "title": "Rosters · side by side (desktop)", "expand": "fill" },
+
+    "Huddle-Mobile.dc.html": { "x": 0, "y": 5400, "w": 390, "h": 1800, "title": "Huddle · pick a time (mobile)", "is_interactive": true },
+    "Huddle-Done-Mobile.dc.html": { "x": 470, "y": 5400, "w": 390, "h": 1650, "title": "Huddle · confirmed and record (mobile)" },
+    "Huddle-Desktop.dc.html": { "x": 940, "y": 5400, "w": 1280, "h": 1450, "title": "Huddle · full flow (desktop)", "expand": "fill" },
+
+    "Memory-Mobile.dc.html": { "x": 0, "y": 7700, "w": 390, "h": 2150, "title": "Memory (mobile)" },
+    "Memory-Desktop.dc.html": { "x": 470, "y": 7700, "w": 1280, "h": 1250, "title": "Memory (desktop)", "expand": "fill" }
+  },
+  "order": [
+    "Main.dc.html",
+    "Home-Desktop.dc.html",
+    "Home-Empty-Mobile.dc.html",
+    "Send-Error-Mobile.dc.html",
+    "Roster-Mobile.dc.html",
+    "Roster-Edit-Mobile.dc.html",
+    "Roster-Loading-Mobile.dc.html",
+    "Roster-Desktop.dc.html",
+    "Huddle-Mobile.dc.html",
+    "Huddle-Done-Mobile.dc.html",
+    "Huddle-Desktop.dc.html",
+    "Memory-Mobile.dc.html",
+    "Memory-Desktop.dc.html"
+  ],
+  "notes": {
+    "n1": { "x": 0, "y": -300, "text": "1 · Weekly briefing and approval queue", "kind": "title1", "maxW": 2690 },
+    "n2": { "x": 0, "y": 2450, "text": "2 · Roster suggestions", "kind": "title1", "maxW": 2690 },
+    "n3": { "x": 0, "y": 5100, "text": "3 · Conflict huddle", "kind": "title1", "maxW": 2220 },
+    "n4": { "x": 0, "y": 7400, "text": "4 · Memory", "kind": "title1", "maxW": 1750 }
+  },
+  "designSystems": [
+    {
+      "title": "Shepherd",
+      "namespace": "shepherd",
+      "artifact": "https://claude.ai/code/artifact/6b8c8190-d1e1-4a4d-9cb3-ed07060e8728",
+      "version": "1791490140-4837",
+      "copiedAt": "2026-10-08T20:12:00Z"
+    }
+  ]
+}

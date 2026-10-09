@@ -1,0 +1,3 @@
+A single thing that needs the leader this week: a tag naming the kind (Shared volunteer, Overload, Absence, Gap), one sentence in `t-body`, then at most two actions. The primary action is the likeliest next step.
+
+Write like a colleague who noticed something, not an alarm: "Anna has served 9 of the last 10 weeks." Use `attn` tags for conflict and overload and the `soft` tag for absence and gaps. Where Shepherd will not act (it never contacts the volunteer), say so in the small `.sh-note` under the buttons. Stack cards with `space-3` between them under the briefing headline ("Kids Ministry: 3 things need you this week", `t-display`).
