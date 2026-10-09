@@ -8,7 +8,7 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.api.ask import ask_llm_dependency, today_dependency
@@ -390,3 +390,91 @@ def test_a_decline_notice_settles_once_the_place_is_covered(
     (notice,) = client.get(notices).json()
     assert notice["settled"] is True
     assert notice["update"] == f"Covered: {fill['name']} is in."
+
+
+# --- greeting, "when am I serving?", never the same reply twice ------------------
+
+
+def replies_with_buttons(client: TestClient, grace: dict, who: str, words: str) -> list[dict]:
+    response = client.post(
+        f"/churches/{grace['id']}/people/{grace['people'][who]}/chat", json={"text": words}
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["replies"]
+
+
+def test_a_greeting_is_answered_by_name_with_what_she_can_ask(
+    client: TestClient, grace: dict
+) -> None:
+    (reply,) = replies_with_buttons(client, grace, "Hannah Wright", "hi")
+    assert reply["body"].startswith("Hi Hannah!")
+    assert reply["buttons"] == [
+        "When am I serving?",
+        "I'm away on some dates",
+        "What do you know about me?",
+    ]
+    send_kids_reminders(client, grace)
+    (reply,) = replies_with_buttons(client, grace, "Anna Parker", "Hello!")
+    assert reply["body"] == "Hi Anna! Can you make Sun Oct 11? Reply 1 = yes, 2 = can't make it."
+    assert reply["buttons"] == ["Yes, I'll be there", "I can't make it"]
+
+
+def test_when_am_i_serving_lists_her_places_from_approved_rosters(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    proposals = session.scalar(select(func.count()).select_from(Proposal))
+    messages = session.scalar(select(func.count()).select_from(Message))
+    (answer,) = say(client, grace, "Anna Parker", "serving reminders")
+    assert answer.startswith("Here's when you're serving:\n")
+    assert "Sun Oct 11, 9:30 AM: Kids (Helper)" in answer
+    # A fact asked for twice is answered the same way; only fallbacks change wording.
+    assert say(client, grace, "Anna Parker", "When am I serving?") == [answer]
+    assert session.scalar(select(func.count()).select_from(Proposal)) == proposals
+    assert session.scalar(select(func.count()).select_from(Message)) == messages
+
+
+def test_a_place_in_an_open_double_booking_waits_for_her_leaders(
+    client: TestClient, grace: dict
+) -> None:
+    # Checks run when a leader opens Home; they find Hannah's Wednesday double booking.
+    client.get(
+        f"/churches/{grace['id']}/leaders/{grace['leaders']['Sarah Collins']}/briefing",
+        params={"start": "2026-10-11"},
+    )
+    (answer,) = say(client, grace, "Hannah Wright", "when am I serving?")
+    assert "Your leaders will confirm Wed Oct 14 with you." in answer
+    assert "Wed Oct 14, " not in answer
+    for hidden in ("Media", "overlap", "double", "David", "Mike"):
+        assert hidden not in answer
+
+
+def test_the_same_unclear_message_twice_gets_a_different_reply_with_buttons(
+    client: TestClient, grace: dict
+) -> None:
+    app.dependency_overrides[ask_llm_dependency] = lambda: None
+    first = replies_with_buttons(client, grace, "Hannah Wright", "blah")
+    second = replies_with_buttons(client, grace, "Hannah Wright", "blah")
+    assert first[0]["body"] != second[0]["body"]
+    assert second[0]["buttons"] == first[0]["buttons"] != []
+
+    send_kids_reminders(client, grace)
+    first = replies_with_buttons(client, grace, "Anna Parker", "hmm")
+    second = replies_with_buttons(client, grace, "Anna Parker", "hmm")
+    assert first[0]["body"] == "Sorry, I didn't catch that. Reply 1 = yes, 2 = can't make it."
+    assert second[0]["body"] != first[0]["body"]
+    assert second[0]["buttons"] == ["Yes, I'll be there", "I can't make it"]
+
+
+def test_the_help_buttons_do_what_they_say(client: TestClient, grace: dict, llm: FakeLLM) -> None:
+    assert say(client, grace, "Hannah Wright", "I'm away on some dates") == [
+        "Which dates are you away? For example: the 19th and the 26th."
+    ]
+    assert say(client, grace, "Hannah Wright", "the 25th")[0].startswith(
+        "Got it: you're away Oct 25"
+    )
+    assert say(client, grace, "Hannah Wright", "What do you know about me?")[0].startswith(
+        "Here's what I have:"
+    )
+    # "stop my reminders" turns them off (the model reads it); it isn't a schedule question.
+    llm.queue(ParsedReply(intent=ReplyIntent.STOP, dates=[]))
+    assert not say(client, grace, "Hannah Wright", "stop my reminders")[0].startswith("Here's")

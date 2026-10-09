@@ -15,7 +15,7 @@ starts (reminders) needs a leader's approval.
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -29,6 +29,7 @@ from app.db.models import (
     Blockout,
     Church,
     Conversation,
+    Finding,
     Gathering,
     LeaderNotice,
     Membership,
@@ -43,13 +44,21 @@ from app.db.models import (
 )
 from app.db.repositories.notices import NoticeWriter
 from app.db.repositories.proposals import ProposalRepository
-from app.domain.enums import AssignmentStatus, MembershipStatus, MessageStatus, StatedBy
+from app.domain.enums import (
+    AssignmentStatus,
+    FindingStatus,
+    FindingType,
+    MembershipStatus,
+    MessageStatus,
+    StatedBy,
+)
 from app.domain.replies import ParsedReply, ReplyIntent
 from app.llm.client import LLMClient
 from app.llm.prompts.replies import PARSE
 from app.services import reply_types
 from app.services.approval import ApprovalService
 from app.services.briefing import church_today
+from app.services.reminders import BUTTONS as REMINDER_BUTTONS
 
 YES = re.compile(
     r"^\s*(1\b|y\b|yes\b|yep\b|yeah\b|sure\b|ok\b|okay\b|count me in|i'?ll be there)", re.I
@@ -63,6 +72,17 @@ MAYBE = re.compile(r"\b(maybe|not sure|unsure|depends|might|possibly|perhaps|pro
 STOP = re.compile(r"^\s*(stop|unsubscribe|stop messages|no more messages)\s*[.!]?\s*$", re.I)
 START = re.compile(r"^\s*(start|resume|start again)\s*[.!]?\s*$", re.I)
 WHAT_I_KNOW = re.compile(r"\bwhat (do|did) you (remember|know|have|keep) (about|on) me\b", re.I)
+GREETING = re.compile(
+    r"^\s*(hi|hello|hey|hiya|good (morning|afternoon|evening))( there)?( shepherd)?[\s!.,]*$", re.I
+)
+SCHEDULE = re.compile(
+    r"\b(when (am i|do i) (serving|serve|on|scheduled)|my schedule|(serving|my) reminders?|"
+    r"am i (serving|on|scheduled)|what am i (serving|doing|on))\b",
+    re.I,
+)
+# "stop my reminders" is about turning them off, not asking when she serves.
+ON_OFF = re.compile(r"\b(stop|pause|turn|cancel|no more|start|resume|unsubscribe)\b", re.I)
+AWAY_ASK = re.compile(r"^\s*i'?m away (on )?some dates[\s.!]*$", re.I)
 AWAY_WORDS = re.compile(
     r"\b(away|out|off|travel\w*|vacation|holiday|not available|unavailable|can'?t do)\b", re.I
 )
@@ -86,6 +106,8 @@ PLAIN_DECLINE = re.compile(
 YES_BUTTONS = ("Yes", "Change")
 MAYBE_BUTTONS = ("Can't commit", "I'll let you know")
 KNOW_BUTTONS = ("Change something", "All good")
+HELP_BUTTONS = ("When am I serving?", "I'm away on some dates", "What do you know about me?")
+SCHEDULE_WEEKS = 4
 BUTTONS_FOR = {"away_confirm": YES_BUTTONS, "maybe": MAYBE_BUTTONS, "what_i_know": KNOW_BUTTONS}
 
 
@@ -97,6 +119,7 @@ class Inbound:
     tz: ZoneInfo
     today: date
     convo: Conversation
+    last: str | None = None  # the bot's previous reply, so it never sends the same one twice
 
     @property
     def first(self) -> str:
@@ -135,8 +158,11 @@ def handle_inbound(
         tz=ZoneInfo(church.timezone),
         today=today or church_today(session, church_id),
         convo=convo,
+        last=(convo.context or {}).get("last"),
     )
     replies = _route(ctx, text.strip(), llm)
+    if replies:  # only the bot's own wording is kept, never hers
+        convo.context = {**(convo.context or {}), "last": replies[-1].body}
     channel = channel_for(session, church)
     for reply in replies:
         channel.reply(reply)
@@ -156,6 +182,13 @@ def _route(ctx: Inbound, text: str, llm: LLMClient | None) -> list[BotReply]:
         return _start(ctx)
     if WHAT_I_KNOW.search(text):
         return _what_i_know(ctx)
+    if SCHEDULE.search(text) and not ON_OFF.search(text):
+        return _schedule(ctx)
+    if AWAY_ASK.match(text):
+        _await(ctx, "away_dates")
+        return [_say(ctx, "Which dates are you away? For example: the 19th and the 26th.")]
+    if GREETING.match(text):
+        return _greet(ctx)
     # "stop" means no new reminders; she can still answer one she already has.
     if ctx.person.stopped and _open_reminder(ctx) is None:
         return [_say(ctx, "Reminders are off. Write 'start' anytime to turn them back on.")]
@@ -231,14 +264,115 @@ def _route(ctx: Inbound, text: str, llm: LLMClient | None) -> list[BotReply]:
                 return _decline(ctx, reminder, text)  # the whole message, passed on as said
 
     if reminder:
-        return [_say(ctx, "Sorry, I didn't catch that. Reply 1 = yes, 2 = can't make it.")]
+        return [
+            _fresh(
+                ctx,
+                _say(ctx, "Sorry, I didn't catch that. Reply 1 = yes, 2 = can't make it."),
+                _say(
+                    ctx,
+                    "Sorry, I still didn't get that. Tap a button below, or write 'maybe' if "
+                    "you're not sure.",
+                    tuple(REMINDER_BUTTONS),
+                ),
+            )
+        ]
     return [
-        _say(
+        _fresh(
             ctx,
-            'I can help with your serving reminders, away dates ("I\'m away the 19th"), '
-            "or what I know about you.",
+            _say(
+                ctx,
+                'I can help with your serving reminders, away dates ("I\'m away the 19th"), '
+                "or what I know about you.",
+                HELP_BUTTONS,
+            ),
+            _say(
+                ctx,
+                "Sorry, I'm not sure what you mean. Tap one of these, or message your leader "
+                "directly.",
+                HELP_BUTTONS,
+            ),
         )
     ]
+
+
+def _greet(ctx: Inbound) -> list[BotReply]:
+    reminder = _open_reminder(ctx)
+    if reminder:
+        when = f"{reminder.start:%a} {_short(reminder.start.date())}"
+        first = _say(
+            ctx,
+            f"Hi {ctx.first}! Can you make {when}? Reply 1 = yes, 2 = can't make it.",
+            tuple(REMINDER_BUTTONS),
+        )
+    else:
+        first = _say(
+            ctx,
+            f"Hi {ctx.first}! I'll message you here before you serve. You can also ask me:",
+            HELP_BUTTONS,
+        )
+    return [
+        _fresh(ctx, first, _say(ctx, "Hi again! Tap one of these, or just tell me.", HELP_BUTTONS))
+    ]
+
+
+def _schedule(ctx: Inbound) -> list[BotReply]:
+    """Her own places in the coming weeks, from approved rosters. A place caught in an open
+    double booking is left out until her leaders settle it; she isn't part of their huddle."""
+    s, cid, pid = ctx.session, ctx.church.id, ctx.person.id
+    start = datetime.combine(ctx.today, time(0), tzinfo=ctx.tz)
+    rows = s.execute(
+        select(Assignment.id, Assignment.status, Gathering.start_at, Ministry.name, Role.name)
+        .join(Gathering, Gathering.id == Assignment.gathering_id)
+        .join(Ministry, Ministry.id == Assignment.ministry_id)
+        .join(Role, Role.id == Assignment.role_id)
+        .where(
+            Assignment.church_id == cid,
+            Assignment.person_id == pid,
+            Assignment.status.in_([AssignmentStatus.APPROVED, AssignmentStatus.CONFIRMED]),
+            Gathering.start_at >= start,
+            Gathering.start_at < start + timedelta(weeks=SCHEDULE_WEEKS),
+        )
+        .order_by(Gathering.start_at)
+    ).all()
+    held = {
+        aid
+        for details in s.scalars(
+            select(Finding.details).where(
+                Finding.church_id == cid,
+                Finding.type == FindingType.OVERLAP,
+                Finding.status == FindingStatus.OPEN,
+                Finding.person_ids.contains([pid]),
+            )
+        )
+        for aid in details.get("assignment_ids", [])
+    }
+    lines: list[str] = []
+    pending: list[str] = []
+    for aid, status, at, ministry, role in rows:
+        local = at.astimezone(ctx.tz)
+        day = f"{local:%a} {_short(local.date())}"
+        if str(aid) in held:
+            if day not in pending:
+                pending.append(day)
+            continue
+        if len(lines) < 6:
+            done = " (confirmed)" if status is AssignmentStatus.CONFIRMED else ""
+            hour = f"{local:%I:%M %p}".lstrip("0")
+            lines.append(f"{day}, {hour}: {ministry} ({role}){done}")
+    if not lines and not pending:
+        return [
+            _say(
+                ctx,
+                f"You're not on a roster in the next {SCHEDULE_WEEKS} weeks. Your leader will "
+                "message you here before you serve.",
+            )
+        ]
+    body = "Here's when you're serving:\n" + "\n".join(lines) if lines else ""
+    if pending:
+        body += ("\n" if body else "") + f"Your leaders will confirm {_and(pending)} with you."
+        if not lines:
+            body += f" Nothing else is on your rosters for the next {SCHEDULE_WEEKS} weeks."
+    return [_say(ctx, body)]
 
 
 # --- answers to a reminder ---------------------------------------------------
@@ -497,6 +631,12 @@ def _await(ctx: Inbound, what: str | None, context: dict[str, Any] | None = None
 
 def _say(ctx: Inbound, body: str, buttons: tuple[str, ...] = ()) -> BotReply:
     return BotReply(person_id=ctx.person.id, body=body, buttons=buttons)
+
+
+def _fresh(ctx: Inbound, *options: BotReply) -> BotReply:
+    """The first option that isn't the bot's previous reply, so she never gets the same
+    words twice in a row."""
+    return next((o for o in options if o.body != ctx.last), options[-1])
 
 
 def _reason(text: str) -> str | None:

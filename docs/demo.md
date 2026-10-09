@@ -123,6 +123,11 @@ open "See what volunteers get" on "Who's leading today?" in a second window.
    - "What do you remember about me?": only her teams, her stated preference and her away
      dates; never leader notes or memory.
    - "stop" / "start": reminders off and on; her leader is told.
+   - "hi" or "When am I serving?" (on any volunteer's phone, even before a reminder): a
+     greeting by name with three option buttons, or her places for the next 4 weeks from
+     approved rosters. A place caught in an open double booking is left out ("Your leaders
+     will confirm Wed Oct 14 with you."), as on Hannah's phone. An unclear message gets
+     different wording the second time, with buttons, so the bot never repeats itself.
 
 Reset before presenting. Anna's own messages are kept in the browser per person, and a
 reset gives everyone new ids, so her phone starts clean; **Clear Anna's side of this demo
