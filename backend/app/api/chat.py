@@ -32,12 +32,15 @@ from app.domain.schemas import (
     ChatThreadOut,
     NoticeOut,
     ProposalOut,
+    PutInIn,
+    PutInOut,
     VolunteerOut,
 )
 from app.services.briefing import church_today
-from app.services.errors import NotAllowed
+from app.services.errors import ApprovalError, NotAllowed, NotFound
 from app.services.inbound import UnknownPerson, handle_inbound, notice_put_in, notice_settled
 from app.services.proposal_text import describe
+from app.services.put_in import put_in
 from app.services.reminders import draft_reminders
 
 router = APIRouter(tags=["volunteer chat"])
@@ -206,3 +209,23 @@ def _out(m: SimulatorMessage) -> ChatMessageOut:
     return ChatMessageOut(
         id=m.id, body=m.body, buttons=m.buttons, at=m.created_at, approved=m.message_id is not None
     )
+
+
+@router.post("/churches/{church_id}/notices/{notice_id}/put-in")
+def put_in_from_notice(reader: ReaderDep, notice_id: uuid.UUID, body: PutInIn) -> PutInOut:
+    """Someone said yes when asked: the leader's tap puts them in (a swap if they were asked
+    to take someone's place). Approved and audited through ApprovalService."""
+    session = reader.session
+    try:
+        result = put_in(session, reader.church_id, notice_id, body.person_id)
+    except NotFound as error:
+        session.rollback()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+    except NotAllowed as error:
+        session.rollback()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
+    except ApprovalError as error:
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    session.commit()
+    return result

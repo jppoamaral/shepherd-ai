@@ -66,6 +66,9 @@ HANDLERS: Mapping[str, ProposalHandler] = {
     serve_ask_apply.PROPOSAL_TYPE: ProposalHandler(
         may_decide=serve_ask_apply.may_decide, apply=serve_ask_apply.apply
     ),
+    serve_ask_apply.SWAP_TYPE: ProposalHandler(
+        may_decide=serve_ask_apply.may_decide, apply=serve_ask_apply.apply_swap
+    ),
     **{
         kind: ProposalHandler(may_decide=reply_apply.may_decide, apply=reply_apply.apply)
         for kind in reply_apply.TYPES

@@ -87,6 +87,7 @@ export class AskPage {
       about_person_id: action.about_person_id,
       on: action.on,
       role_id: action.role_id,
+      replaces_assignment_id: action.replaces_assignment_id,
     });
   }
 

@@ -83,6 +83,7 @@ class Message(TenantMixin, CreatedAtMixin, Base):
         tenant_fk("assignment_id", "assignments"),
         tenant_fk("gathering_id", "gatherings"),
         tenant_fk("role_id", "roles"),
+        tenant_fk("replaces_assignment_id", "assignments"),
     )
 
     person_id: Mapped[uuid.UUID]
@@ -100,5 +101,7 @@ class Message(TenantMixin, CreatedAtMixin, Base):
     # An ask's place (there is no assignment yet), and when the person answered it.
     gathering_id: Mapped[uuid.UUID | None]
     role_id: Mapped[uuid.UUID | None]
+    # An ask to take someone's place ("Who can take Anna's place?"): her place, to swap.
+    replaces_assignment_id: Mapped[uuid.UUID | None]
     answered_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     buttons: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default="[]")

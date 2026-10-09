@@ -162,7 +162,14 @@ def ask(
 ) -> AskAnswer:
     ctx = _context(session, church_id, ministry_id, body.person_id, today)
     if body.intent is not None:
-        return _answer(ctx, body.intent, body.about_person_id, body.on, body.role_id)
+        return _answer(
+            ctx,
+            body.intent,
+            body.about_person_id,
+            body.on,
+            body.role_id,
+            body.replaces_assignment_id,
+        )
 
     question = (body.question or "").strip()
     if private_reason(question) or _WHY_AWAY.search(question):
@@ -255,7 +262,16 @@ def send_drafts(
         if d.kind == "ask":
             if person.id not in ctx.team:
                 raise AskNotFound(f"{person.name} isn't on the {ctx.ministry.name} team")
-            asks.append({**item, "gathering_id": str(d.gathering_id), "role_id": str(d.role_id)})
+            ask_item = {**item, "gathering_id": str(d.gathering_id), "role_id": str(d.role_id)}
+            if d.replaces_assignment_id is not None:
+                taken = _place(ctx, d.replaces_assignment_id)
+                if taken is None or (taken.gathering_id, taken.role_id) != (
+                    d.gathering_id,
+                    d.role_id,
+                ):
+                    raise AskNotFound("that place has changed since the draft")
+                ask_item["replaces_assignment_id"] = str(taken.id)
+            asks.append(ask_item)
             continue
         assignment_id = d.assignment_id
         if assignment_id is None or not any(p.assignment_id == assignment_id for p in place.people):
@@ -343,6 +359,34 @@ def _sent_text(sent: list[str], skipped: list[str]) -> str:
     return " ".join([done, *skipped])
 
 
+@dataclass
+class Place:
+    id: uuid.UUID
+    gathering: Gathering
+    gathering_id: uuid.UUID
+    role_id: uuid.UUID
+    holder: str  # who has it now
+
+
+def _place(ctx: Context, assignment_id: uuid.UUID) -> Place | None:
+    """A place on this ministry's roster that someone could take over (not declined)."""
+    row = ctx.session.execute(
+        select(Assignment, Gathering, Person.name)
+        .join(Gathering, Gathering.id == Assignment.gathering_id)
+        .join(Person, Person.id == Assignment.person_id)
+        .where(
+            Assignment.church_id == ctx.church_id,
+            Assignment.id == assignment_id,
+            Assignment.ministry_id == ctx.ministry.id,
+            Assignment.status != AssignmentStatus.DECLINED,
+        )
+    ).first()
+    if row is None:
+        return None
+    a, g, holder = row
+    return Place(a.id, g, g.id, a.role_id, holder)
+
+
 def _why_not(ctx: Context, person_id: uuid.UUID, first: str) -> str | None:
     """Why Shepherd can't send to this person, so the leader copies the message instead."""
     person = ctx.session.get_one(Person, person_id)
@@ -364,6 +408,7 @@ def _answer(
     about: uuid.UUID | None,
     on: date | None,
     role_id: uuid.UUID | None,
+    replaces: uuid.UUID | None = None,
 ) -> AskAnswer:
     person = ctx.team.get(about) if about else None
     if about and person is None:
@@ -391,7 +436,7 @@ def _answer(
         if intent is AskIntent.REPLACE:
             return _replace(ctx, person, on)
         if intent is AskIntent.DRAFT_MESSAGE:
-            return _draft_message(ctx, person, on, role_id)
+            return _draft_message(ctx, person, on, role_id, replaces)
         if intent is AskIntent.REMEMBER:
             return _remember(ctx, person)
         if intent is AskIntent.AVAILABILITY:
@@ -534,6 +579,7 @@ def _replace(ctx: Context, person: TeamMember, on: date | None) -> AskAnswer:
                 about_person_id=best.person_id,
                 on=day,
                 role_id=role.id,
+                replaces_assignment_id=assignment.id,
             )
         )
     if finding_id := _open_overlap(ctx, assignment.id):
@@ -679,15 +725,24 @@ def _draft_reminder(ctx: Context, on: date | None) -> AskAnswer:
 
 
 def _draft_message(
-    ctx: Context, person: TeamMember, on: date | None, role_id: uuid.UUID | None
+    ctx: Context,
+    person: TeamMember,
+    on: date | None,
+    role_id: uuid.UUID | None,
+    replaces: uuid.UUID | None = None,
 ) -> AskAnswer:
+    # Asking someone to take another person's place: that exact place, if it still stands.
+    taken = _place(ctx, replaces) if replaces else None
+    if taken is not None:
+        on, role_id = taken.gathering.start_at.astimezone(ctx.tz).date(), taken.role_id
     day = on or _next_day(ctx)
     gatherings = _gatherings_on(ctx, day) if day else []
     if day is None or not gatherings:
         return _nothing_scheduled(ctx, AskIntent.DRAFT_MESSAGE)
     gathering = next(
-        (g for g in gatherings if any(r.role_id == role_id for r in g.roles)), gatherings[0]
-    )
+        (g for g in gatherings if taken and g.gathering_id == taken.gathering_id),
+        None,
+    ) or next((g for g in gatherings if any(r.role_id == role_id for r in g.roles)), gatherings[0])
     # The place asked about, else a role they already fill, else the gathering's first.
     role = (
         next((r for r in gathering.roles if r.role_id == role_id), None)
@@ -715,6 +770,8 @@ def _draft_message(
                 kind="ask",
                 gathering_id=gathering.gathering_id,
                 role_id=role.role_id,
+                replaces_assignment_id=taken.id if taken else None,
+                replaces=taken.holder if taken else None,
                 can_send=why_not is None,
                 why_not=why_not,
             )

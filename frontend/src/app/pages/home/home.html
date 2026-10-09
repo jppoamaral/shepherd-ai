@@ -45,8 +45,8 @@
         }
         <div class="sh-actions">
           @if (n.put_in; as p) {
-            <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === n.id" (click)="putIn(n, p)">
-              Put {{ first(p.name) }} in
+            <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === n.id" (click)="putIn(n)">
+              Put {{ first(p.name) }} in{{ p.replaces ? ' for ' + first(p.replaces) : '' }}
             </button>
           }
           <button type="button" class="sh-btn sh-btn--secondary" (click)="dismiss(n)">Dismiss</button>

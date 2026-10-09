@@ -459,6 +459,7 @@ class AskIn(BaseModel):
     about_person_id: uuid.UUID | None = None
     on: date | None = None
     role_id: uuid.UUID | None = None
+    replaces_assignment_id: uuid.UUID | None = None  # drafting an ask to take this place
 
     @model_validator(mode="after")
     def _question_or_intent(self) -> "AskIn":
@@ -476,6 +477,7 @@ class AskAction(BaseModel):
     about_person_id: uuid.UUID | None = None
     on: date | None = None
     role_id: uuid.UUID | None = None
+    replaces_assignment_id: uuid.UUID | None = None
     href: str | None = None  # app path for links, e.g. "/huddle/<finding id>"
 
 
@@ -496,6 +498,9 @@ class AskDraft(BaseModel):
     gathering_id: uuid.UUID
     role_id: uuid.UUID
     assignment_id: uuid.UUID | None = None  # a reminder's place on the roster
+    # An ask to take someone's place: that place, and whose it is now (for the leader only).
+    replaces_assignment_id: uuid.UUID | None = None
+    replaces: str | None = None
     can_send: bool = True
     why_not: str | None = None  # "Caleb hasn't connected to chat yet."
 
@@ -507,6 +512,7 @@ class AskSendDraft(BaseModel):
     gathering_id: uuid.UUID
     role_id: uuid.UUID
     assignment_id: uuid.UUID | None = None
+    replaces_assignment_id: uuid.UUID | None = None
 
 
 class AskSendIn(BaseModel):
@@ -600,3 +606,13 @@ class PutIn(BaseModel):
     role: str
     person_id: uuid.UUID
     name: str
+    # Set when they'd take someone's place (a swap, as the huddle's Resolve does).
+    replaces: str | None = None
+
+
+class PutInIn(BaseModel):
+    person_id: uuid.UUID  # the leader tapping "Put … in"
+
+
+class PutInOut(BaseModel):
+    text: str  # "Caleb Baker is in Anna's place."

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
-import type { Briefing, BriefingItem, GapFill, Leader, Notice, Proposal, PutIn } from '../../api/types';
+import type { Briefing, BriefingItem, GapFill, Leader, Notice, Proposal } from '../../api/types';
 import { Session } from '../../core/session';
 import { churchToday, longDate, monthDay } from '../../core/format';
 import { Icon } from '../../ui/icon';
@@ -147,18 +147,17 @@ export class HomePage {
       });
   }
 
-  /** Someone said yes when asked: record them in that place, through the approval queue. */
-  protected putIn(n: Notice, p: PutIn): void {
+  /** Someone said yes when asked: put them in (a swap if it was someone's place), through
+   * the approval queue. */
+  protected putIn(n: Notice): void {
     this.busy.set(n.id);
     this.queueMessage.set('');
     this.api
-      .approveSuggestion(this.session.churchId(), p.ministry_id, this.session.personId(), [
-        { gathering_id: p.gathering_id, role_id: p.role_id, person_id: p.person_id, reason: 'Said yes when asked.' },
-      ])
+      .putIn(this.session.churchId(), n.id, this.session.personId())
       .subscribe({
-        next: () => {
+        next: (out) => {
           this.busy.set(null);
-          this.queueMessage.set(`${p.name} is on the roster as ${p.role}.`);
+          this.queueMessage.set(out.text);
           this.load(this.session.churchId(), this.session.personId());
           this.checkNotices();
         },

@@ -475,11 +475,15 @@ def _confirm(ctx: Inbound, r: Reminder) -> list[BotReply]:
     _await(ctx, None)
     if r.ask is not None:
         _approve(ctx, reply_types.CAN_SERVE, {"message_id": str(r.ask.id)})
+        # Asked to take someone's place: the leader's notice says whose (she isn't told).
+        holder = _holder(ctx, r.ask.replaces_assignment_id)
+        instead = f" in {holder}'s place" if holder else ""
         _tell_leaders(
             ctx,
             r.ministry_id,
             "can_serve",
-            f"{ctx.person.name} can serve {_when(r)} ({r.ministry}, {r.role}).",
+            f"{ctx.person.name} can serve {_when(r)}{instead} ({r.ministry}, {r.role}).",
+            assignment_id=r.ask.replaces_assignment_id if holder else None,
             gathering_id=r.ask.gathering_id,
             role_id=r.ask.role_id,
         )
@@ -550,6 +554,21 @@ def _cant_commit(ctx: Inbound, r: Reminder) -> list[BotReply]:
             assignment_id=r.assignment.id,
         )
     return [_say(ctx, f"Okay, I've let your leader know you can't commit for {when}.")]
+
+
+def _holder(ctx: Inbound, assignment_id: uuid.UUID | None) -> str | None:
+    """Who holds a place now, if it still stands (not declined)."""
+    if assignment_id is None:
+        return None
+    return ctx.session.scalar(
+        select(Person.name)
+        .join(Assignment, Assignment.person_id == Person.id)
+        .where(
+            Assignment.church_id == ctx.church.id,
+            Assignment.id == assignment_id,
+            Assignment.status != AssignmentStatus.DECLINED,
+        )
+    )
 
 
 def _when(r: Reminder) -> str:
@@ -869,10 +888,12 @@ def _holds_place(session: Session, notice: LeaderNotice) -> bool:
 
 
 def notice_put_in(session: Session, notice: LeaderNotice, name: str) -> PutIn | None:
-    """For "can serve": the place, so the leader can put them in with one tap."""
+    """For "can serve": the place, so the leader can put them in with one tap. If they were
+    asked to take someone's place and that person still holds it, it's a swap."""
     if notice.kind != "can_serve" or notice.gathering_id is None or notice.role_id is None:
         return None
     role = session.get_one(Role, notice.role_id)
+    swap = swap_from(session, notice)
     return PutIn(
         ministry_id=notice.ministry_id,
         gathering_id=notice.gathering_id,
@@ -880,4 +901,22 @@ def notice_put_in(session: Session, notice: LeaderNotice, name: str) -> PutIn | 
         role=role.name,
         person_id=notice.about_person_id,
         name=name,
+        replaces=swap[1] if swap else None,
     )
+
+
+def swap_from(session: Session, notice: LeaderNotice) -> tuple[Assignment, str] | None:
+    """The place a "can serve" notice would take over, and its holder, if it still stands."""
+    if notice.assignment_id is None:
+        return None
+    row = session.execute(
+        select(Assignment, Person.name)
+        .join(Person, Person.id == Assignment.person_id)
+        .where(
+            Assignment.church_id == notice.church_id,
+            Assignment.id == notice.assignment_id,
+            Assignment.status != AssignmentStatus.DECLINED,
+            Assignment.person_id != notice.about_person_id,
+        )
+    ).first()
+    return (row[0], row[1]) if row else None

@@ -571,7 +571,15 @@ def ask_draft(client: TestClient, grace: dict, **body) -> list[dict]:  # type: i
 
 
 def send(client: TestClient, grace: dict, drafts: list[dict], leader: str = "Sarah Collins"):  # type: ignore[no-untyped-def]
-    keys = ("to_person_id", "kind", "body", "gathering_id", "role_id", "assignment_id")
+    keys = (
+        "to_person_id",
+        "kind",
+        "body",
+        "gathering_id",
+        "role_id",
+        "assignment_id",
+        "replaces_assignment_id",
+    )
     return client.post(
         f"/churches/{grace['id']}/ministries/{grace['kids']}/ask/send",
         json={
@@ -584,6 +592,13 @@ def send(client: TestClient, grace: dict, drafts: list[dict], leader: str = "Sar
 def notices(client: TestClient, grace: dict) -> list[dict]:
     sarah = grace["leaders"]["Sarah Collins"]
     return client.get(f"/churches/{grace['id']}/leaders/{sarah}/notices").json()  # type: ignore[no-any-return]
+
+
+def put_in_from(client: TestClient, grace: dict, notice: dict):  # type: ignore[no-untyped-def]
+    return client.post(
+        f"/churches/{grace['id']}/notices/{notice['id']}/put-in",
+        json={"person_id": grace["leaders"]["Sarah Collins"]},
+    )
 
 
 def connect(session: Session, grace: dict, who: str, connected: bool = True) -> None:
@@ -630,17 +645,10 @@ def test_send_on_an_ask_sends_it_and_a_yes_lets_the_leader_put_them_in(
     say(client, grace, "Anna Peterson", "1")
     assert len([n for n in notices(client, grace) if n["kind"] == "can_serve"]) == 1
 
-    approved = client.post(
-        f"/churches/{grace['id']}/ministries/{grace['kids']}/suggestion/approve",
-        json={
-            "person_id": grace["leaders"]["Sarah Collins"],
-            "assignments": [
-                {k: put_in[k] for k in ("gathering_id", "role_id", "person_id")}
-                | {"reason": "Said yes when asked."}
-            ],
-        },
-    )
-    assert approved.status_code == 200, approved.text
+    assert put_in["replaces"] is None  # an ask for an extra place, not anyone's
+    done = put_in_from(client, grace, notice)
+    assert done.status_code == 200, done.text
+    assert done.json()["text"] == "Anna Peterson is on the roster as Check-in."
     (notice,) = [n for n in notices(client, grace) if n["kind"] == "can_serve"]
     assert notice["settled"] and notice["update"] == "Anna is on the roster."
     assert notice["put_in"] is None
@@ -724,3 +732,58 @@ def test_sending_everyone_from_ask_closes_homes_reminder_card(
     assert home.status is ProposalStatus.REJECTED  # it would have sent nothing
     pending = client.get(f"/churches/{grace['id']}/proposals", params={"status": "pending"})
     assert [p for p in pending.json() if p["type"] == "reminders"] == []
+
+
+def test_a_yes_to_taking_annas_place_offers_a_swap_like_resolve(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    out = client.post(
+        f"/churches/{grace['id']}/ministries/{grace['kids']}/ask",
+        json={
+            "person_id": grace["leaders"]["Sarah Collins"],
+            "intent": "replace",
+            "about_person_id": grace["people"]["Anna Parker"],
+            "on": "2026-10-11",
+        },
+    ).json()
+    action = next(a for a in out["actions"] if a["label"].startswith("Draft a message"))
+    anna_place = annas_kids_place(session, grace)
+    assert action["replaces_assignment_id"] == str(anna_place.id)
+    who = next(n for n, pid in grace["people"].items() if pid == action["about_person_id"])
+    first = who.split(" ")[0]
+    connect(session, grace, who)
+
+    keys = ("intent", "about_person_id", "on", "role_id", "replaces_assignment_id")
+    (draft,) = ask_draft(client, grace, **{k: action[k] for k in keys})
+    assert draft["replaces"] == "Anna Parker"
+    assert "Anna" not in draft["body"]  # the volunteer isn't told whose place it is
+    assert send(client, grace, [draft]).status_code == 200
+
+    say(client, grace, who, "1")
+    (notice,) = [n for n in notices(client, grace) if n["kind"] == "can_serve"]
+    assert notice["text"] == (
+        f"{who} can serve Sun Oct 11 at 9:30 AM in Anna Parker's place (Kids, Helper)."
+    )
+    assert notice["put_in"]["replaces"] == "Anna Parker"
+
+    done = put_in_from(client, grace, notice)
+    assert done.status_code == 200, done.text
+    assert done.json()["text"] == f"{who} is in Anna's place as Helper."
+    session.refresh(anna_place)
+    assert str(anna_place.person_id) == grace["people"][who]
+    assert anna_place.status is AssignmentStatus.CONFIRMED  # they said yes
+    swap = session.scalars(select(Proposal).where(Proposal.type == "serve_ask_swap")).one()
+    assert swap.status is ProposalStatus.APPROVED
+    assert session.scalars(select(AuditLog).where(AuditLog.target_id == str(swap.id))).one()
+    # Anna's Sunday double booking is gone, as after Resolve.
+    sarah = grace["leaders"]["Sarah Collins"]
+    brief = client.get(
+        f"/churches/{grace['id']}/leaders/{sarah}/briefing", params={"start": "2026-10-11"}
+    ).json()
+    assert not [
+        i for i in brief["items"] if i["type"] == "overlap" and "Anna Parker" in i["people"]
+    ]
+    (notice,) = [n for n in notices(client, grace) if n["kind"] == "can_serve"]
+    assert notice["settled"] and notice["update"] == f"{first} is on the roster."
+    # Tapping again changes nothing.
+    assert put_in_from(client, grace, notice).status_code == 409

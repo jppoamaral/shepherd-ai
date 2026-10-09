@@ -28,6 +28,7 @@ class MessageWriter:
         assignment_id: uuid.UUID | None = None,
         gathering_id: uuid.UUID | None = None,
         role_id: uuid.UUID | None = None,
+        replaces_assignment_id: uuid.UUID | None = None,
         buttons: list[str] | None = None,
     ) -> Message:
         message = Message(
@@ -40,6 +41,7 @@ class MessageWriter:
             assignment_id=assignment_id,
             gathering_id=gathering_id,
             role_id=role_id,
+            replaces_assignment_id=replaces_assignment_id,
             buttons=buttons or [],
         )
         self.session.add(message)

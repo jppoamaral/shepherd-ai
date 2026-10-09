@@ -34,7 +34,8 @@ Each demo starts from fresh data (reset first) with **Sarah Collins** picked on 
 today?".
 
 **Order matters: Demos 1, 2 and 4 all use Anna Parker's Sunday double booking.** Resolve in
-Demo 1, or Anna declining in Demo 4, takes her off the Kids roster. After that, Ask Shepherd no
+Demo 1, **Put Caleb in for Anna** in Demo 2, or Anna declining in Demo 4, takes her off the
+Kids roster. In a continuous run, stop Demo 2 at Caleb's Yes (or skip Put in) until the end. After that, Ask Shepherd no
 longer offers "Who can take Anna's place?", and Sarah's reminders leave her out. For one
 continuous run, do **Demo 2, then Demo 3** (Resolve, then Undo, leaves the record as it was),
 **then Demo 4**. Reset before **Demo 1**. Anna's Worship place is untouched either way: as
@@ -79,10 +80,11 @@ Suggested questions work without the language model; typed questions need the Az
 3. Tap **Draft a message to Caleb** (or whoever is suggested): "Draft · not sent" with
    **Send to Caleb**, Edit and Copy. Nothing goes out until Sarah taps Send; that tap is her
    approval (a proposal, applied and audited by ApprovalService). Open Caleb's phone (**Show a
-   volunteer's chat**): the ask arrives with **Yes, I can** / **No, sorry**. Tap Yes: Sarah's
-   Home shows "Caleb Baker can serve Sun Oct 11 at 9:30 AM (Kids, Helper)" with **Put Caleb
-   in**. His yes changes nothing; the roster changes only when she taps it. Someone who isn't
-   connected to chat gets no Send button, only Copy.
+   volunteer's chat**): the ask arrives with **Yes, I can** / **No, sorry** (it doesn't say
+   whose place). Tap Yes: Sarah's Home shows "Caleb Baker can serve Sun Oct 11 at 9:30 AM in
+   Anna Parker's place (Kids, Helper)" with **Put Caleb in for Anna**. His yes changes
+   nothing; her tap swaps them, as the huddle's Resolve does, and Anna's double booking goes
+   away. Someone who isn't connected to chat gets no Send button, only Copy.
 4. Type **anyone serving too much lately?** (the model reads the question): Anna, 4 times this
    week, prefers 2 a week.
 5. Type **Why is Olivia taking time off?** "Can't help with that … That's Olivia's to share."

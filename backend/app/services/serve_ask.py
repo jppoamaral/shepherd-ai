@@ -6,4 +6,6 @@ roster changes only when the leader puts her in.
 """
 
 PROPOSAL_TYPE = "serve_ask"
+# Putting someone who said yes into another person's place: a swap, like the huddle's Resolve.
+SWAP_TYPE = "serve_ask_swap"
 BUTTONS = ["Yes, I can", "No, sorry"]

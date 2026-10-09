@@ -101,6 +101,9 @@
                       } @else {
                         <p>{{ draftBody(turn, i) }}</p>
                       }
+                      @if (d.replaces && !isSent) {
+                        <p class="sh-muted why-not">For {{ d.replaces }}'s place. If {{ first(d.to) }} says yes, you can swap them in from Home.</p>
+                      }
                       @if (d.why_not && !isSent) {
                         <p class="sh-muted why-not">{{ d.why_not }}</p>
                       }

@@ -726,6 +726,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/churches/{church_id}/notices/{notice_id}/put-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put In From Notice
+         * @description Someone said yes when asked: the leader's tap puts them in (a swap if they were asked
+         *     to take someone's place). Approved and audited through ApprovalService.
+         */
+        post: operations["put_in_from_notice_churches__church_id__notices__notice_id__put_in_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -758,6 +779,8 @@ export interface components {
             on?: string | null;
             /** Role Id */
             role_id?: string | null;
+            /** Replaces Assignment Id */
+            replaces_assignment_id?: string | null;
             /** Href */
             href?: string | null;
         };
@@ -830,6 +853,10 @@ export interface components {
             role_id: string;
             /** Assignment Id */
             assignment_id?: string | null;
+            /** Replaces Assignment Id */
+            replaces_assignment_id?: string | null;
+            /** Replaces */
+            replaces?: string | null;
             /**
              * Can Send
              * @default true
@@ -857,6 +884,8 @@ export interface components {
             on?: string | null;
             /** Role Id */
             role_id?: string | null;
+            /** Replaces Assignment Id */
+            replaces_assignment_id?: string | null;
         };
         /**
          * AskIntent
@@ -903,6 +932,8 @@ export interface components {
             role_id: string;
             /** Assignment Id */
             assignment_id?: string | null;
+            /** Replaces Assignment Id */
+            replaces_assignment_id?: string | null;
         };
         /**
          * AskSendIn
@@ -1792,6 +1823,21 @@ export interface components {
             person_id: string;
             /** Name */
             name: string;
+            /** Replaces */
+            replaces?: string | null;
+        };
+        /** PutInIn */
+        PutInIn: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+        };
+        /** PutInOut */
+        PutInOut: {
+            /** Text */
+            text: string;
         };
         /**
          * QuestionKind
@@ -3387,6 +3433,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_in_from_notice_churches__church_id__notices__notice_id__put_in_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notice_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutInIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PutInOut"];
+                };
             };
             /** @description Validation Error */
             422: {

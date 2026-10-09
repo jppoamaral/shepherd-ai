@@ -6,6 +6,7 @@ import type {
   AskAnswer,
   AskDraft,
   AskSendOut,
+  PutInOut,
   ChatMessage,
   ChatThread,
   Notice,
@@ -151,10 +152,15 @@ export class ApiService {
   sendDrafts(churchId: string, ministryId: string, personId: string, drafts: AskDraft[]): Observable<AskSendOut> {
     return this.http.post<AskSendOut>(`${this.base}/churches/${churchId}/ministries/${ministryId}/ask/send`, {
       person_id: personId,
-      drafts: drafts.map(({ to_person_id, kind, body, gathering_id, role_id, assignment_id }) => ({
-        to_person_id, kind, body, gathering_id, role_id, assignment_id,
+      drafts: drafts.map(({ to_person_id, kind, body, gathering_id, role_id, assignment_id, replaces_assignment_id }) => ({
+        to_person_id, kind, body, gathering_id, role_id, assignment_id, replaces_assignment_id,
       })),
     });
+  }
+
+  /** "Put … in" on a notice: someone said yes when asked (a swap if it was someone's place). */
+  putIn(churchId: string, noticeId: string, personId: string): Observable<PutInOut> {
+    return this.http.post<PutInOut>(`${this.base}/churches/${churchId}/notices/${noticeId}/put-in`, { person_id: personId });
   }
 
   /** Resolve: accept Shepherd's replacement on the leader's own roster. Messages no one. */

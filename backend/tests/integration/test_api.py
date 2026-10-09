@@ -119,6 +119,8 @@ def test_only_known_endpoints_write(client: TestClient) -> None:
         ("post", "/churches/{church_id}/ministries/{ministry_id}/reminders/draft"),
         # Dismissing a one-time notice deletes it; it was never part of the record.
         ("delete", "/churches/{church_id}/notices/{notice_id}"),
+        # "Put … in" on a notice: a proposal the leader approves at once, via ApprovalService.
+        ("post", "/churches/{church_id}/notices/{notice_id}/put-in"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/memory/notes"),
         ("delete", "/churches/{church_id}/ministries/{ministry_id}/memory/{memory_id}"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/suggestion/approve"),

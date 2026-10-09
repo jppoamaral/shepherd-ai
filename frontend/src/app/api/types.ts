@@ -23,6 +23,7 @@ export type Volunteer = S['VolunteerOut'];
 export type Notice = S['NoticeOut'];
 export type GapFill = S['GapFill'];
 export type PutIn = S['PutIn'];
+export type PutInOut = S['PutInOut'];
 export type HuddleSlot = S['HuddleSlot'];
 export type Memory = S['MemoryOut'];
 export type MemoryItem = S['MemoryItemOut'];
