@@ -58,10 +58,11 @@
       <p class="offline" role="alert"><sh-icon name="alert" />Can't reach Shepherd. Is the server running?</p>
     }
 
-    <form class="composer" (ngSubmit)="submit()">
+    <form class="composer" (ngSubmit)="submit(box)">
       <label class="visually-hidden" for="message">Message to Shepherd</label>
-      <input id="message" name="message" type="text" [(ngModel)]="draft" autocomplete="off" placeholder="Message" maxlength="1000" />
-      <button type="submit" class="send" [disabled]="sending() || !draft.trim()" aria-label="Send message">
+      <input #box id="message" name="message" type="text" [(ngModel)]="draft" autocomplete="off" placeholder="Message" maxlength="1000" />
+      <!-- Never [disabled]: a disabled submit button blocks Enter, so text typed quickly is lost. -->
+      <button type="submit" class="send" [class.idle]="sending() || !draft.trim()" [attr.aria-disabled]="sending() || !draft.trim()" aria-label="Send message">
         <sh-icon name="send" />
       </button>
     </form>

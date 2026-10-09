@@ -47,7 +47,7 @@ from app.domain.schemas import (
 from app.llm.client import LLMClient
 from app.llm.prompts.ask import PARSE
 from app.services.briefing import briefing, church_today, roster
-from app.services.huddle_replacement import EXPERIENCE_RANK, free_candidates
+from app.services.huddle_replacement import EXPERIENCE_RANK, free_candidates, unavailable_on
 from app.services.memory import is_leader, pending_memory_proposals, private_reason
 from app.services.profile import format_time
 
@@ -518,7 +518,7 @@ def _draft_message(
     )
     notes = []
     if person.person_id in _blocked_on(ctx, [person.person_id], day):
-        notes.append(f"{person.first} is blocked out that day.")
+        notes.append(f"{person.first} can't make {_short(day)}.")
     return AskAnswer(
         intent=AskIntent.DRAFT_MESSAGE,
         text="Here is a short draft for you to look over.",
@@ -825,16 +825,8 @@ def _busy(ctx: Context, ids: list[uuid.UUID], start: datetime, end: datetime) ->
 
 
 def _blocked_on(ctx: Context, ids: list[uuid.UUID], day: date) -> set[uuid.UUID]:
-    return set(
-        ctx.session.scalars(
-            select(Blockout.person_id).where(
-                Blockout.church_id == ctx.church_id,
-                Blockout.person_id.in_(ids),
-                Blockout.start_date <= day,
-                Blockout.end_date >= day,
-            )
-        )
-    )
+    """Blocked out that day, or declined a place that day."""
+    return unavailable_on(ctx.session, ctx.church_id, ids, day, ctx.tz)
 
 
 def _next_assignment(

@@ -78,9 +78,12 @@ export class DemoChatPage {
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
 
-  protected submit(): void {
-    const text = this.draft.trim();
-    if (!text) return;
+  /** Reads and clears the box itself: Enter can arrive before change detection has synced
+   * `draft`, and clearing only the model would then leave the old text in the box. */
+  protected submit(box: HTMLInputElement): void {
+    const text = box.value.trim();
+    if (!text || this.sending()) return; // keep what she typed until the last send is done
+    box.value = '';
     this.draft = '';
     this.send(text);
   }

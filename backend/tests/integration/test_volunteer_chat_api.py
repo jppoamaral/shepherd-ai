@@ -448,6 +448,19 @@ def test_a_place_in_an_open_double_booking_waits_for_her_leaders(
         assert hidden not in answer
 
 
+def test_a_held_place_on_a_day_she_also_serves_says_which_time(
+    client: TestClient, grace: dict
+) -> None:
+    client.get(
+        f"/churches/{grace['id']}/leaders/{grace['leaders']['Sarah Collins']}/briefing",
+        params={"start": "2026-10-11"},
+    )
+    (answer,) = say(client, grace, "Anna Parker", "when am I serving?")
+    assert "Sun Oct 11, 11:00 AM: Worship (Keys)" in answer
+    assert "Sun Oct 11, 9:30 AM" not in answer
+    assert "Your leaders will confirm Sun Oct 11 at 9:30 AM with you." in answer
+
+
 def test_the_same_unclear_message_twice_gets_a_different_reply_with_buttons(
     client: TestClient, grace: dict
 ) -> None:
@@ -478,3 +491,68 @@ def test_the_help_buttons_do_what_they_say(client: TestClient, grace: dict, llm:
     # "stop my reminders" turns them off (the model reads it); it isn't a schedule question.
     llm.queue(ParsedReply(intent=ReplyIntent.STOP, dates=[]))
     assert not say(client, grace, "Hannah Wright", "stop my reminders")[0].startswith("Here's")
+
+
+# --- someone who said they can't make it isn't offered again ---------------------
+
+
+def test_someone_who_declined_is_not_suggested_for_that_day(
+    client: TestClient, grace: dict
+) -> None:
+    send_kids_reminders(client, grace)
+    say(client, grace, "Anna Parker", "2")
+    say(client, grace, "Emily Brooks", "2")
+    sarah = grace["leaders"]["Sarah Collins"]
+    brief = client.get(
+        f"/churches/{grace['id']}/leaders/{sarah}/briefing", params={"start": TODAY.isoformat()}
+    ).json()
+    fills = [i["fill"]["name"] for i in brief["items"] if i.get("fill")]
+    assert fills and not {"Anna Parker", "Emily Brooks"} & set(fills)
+
+    free = client.post(
+        f"/churches/{grace['id']}/ministries/{grace['kids']}/ask",
+        json={"person_id": sarah, "intent": "free_on", "on": "2026-10-11"},
+    ).json()
+    names = {p["name"] for p in free["people"]}
+    assert not {"Anna Parker", "Emily Brooks"} & names
+    assert "Anna, Emily and Olivia can't make Sun Oct 11, so I left them out." in free["notes"]
+
+
+def test_an_evening_blockout_counts_on_the_church_local_day(session: Session, grace: dict) -> None:
+    """Wednesday 7:30 PM in Chicago is already Thursday in UTC."""
+    from zoneinfo import ZoneInfo
+
+    from app.db.models import Gathering, GatheringType, Role
+    from app.services.huddle_replacement import free_candidates
+
+    church_id = uuid.UUID(grace["id"])
+    youth, start, end = session.execute(
+        select(Gathering.id, Gathering.start_at, Gathering.end_at)
+        .join(GatheringType, GatheringType.id == Gathering.gathering_type_id)
+        .where(Gathering.church_id == church_id, GatheringType.name == "Wednesday Youth")
+        .order_by(Gathering.start_at)
+        .limit(1)
+    ).one()
+    wednesday = start.astimezone(ZoneInfo("America/Chicago")).date()
+    assert start.date() != wednesday  # the UTC date is the next day
+    sound = session.execute(
+        select(Role.id, Role.ministry_id).where(Role.church_id == church_id, Role.name == "Sound")
+    ).one()
+    before = free_candidates(
+        session, church_id, sound.ministry_id, sound.id, uuid.UUID(int=0), start, end
+    )
+    assert before, youth
+    session.add(
+        Blockout(
+            church_id=church_id,
+            person_id=before[0].person_id,
+            start_date=wednesday,
+            end_date=wednesday,
+            stated_by=StatedBy.VOLUNTEER,
+        )
+    )
+    session.flush()
+    after = free_candidates(
+        session, church_id, sound.ministry_id, sound.id, uuid.UUID(int=0), start, end
+    )
+    assert before[0].person_id not in {c.person_id for c in after}

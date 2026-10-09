@@ -79,6 +79,6 @@
   flex: none; width: var(--tap-min); height: var(--tap-min); border-radius: var(--radius-pill); border: 0;
   background: var(--forest); color: var(--on-forest); display: grid; place-items: center; cursor: pointer;
 }
-.send[disabled] { background: var(--sage-deep); cursor: not-allowed; }
+.send.idle { background: var(--sage-deep); cursor: not-allowed; }
 .hint { max-width: 390px; text-align: center; }
 .clear { font-size: 12px; }

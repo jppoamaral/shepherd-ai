@@ -347,17 +347,16 @@ def _schedule(ctx: Inbound) -> list[BotReply]:
         for aid in details.get("assignment_ids", [])
     }
     lines: list[str] = []
-    pending: list[str] = []
+    pending: dict[str, str] = {}  # day -> time of the first held place that day
     for aid, status, at, ministry, role in rows:
         local = at.astimezone(ctx.tz)
         day = f"{local:%a} {_short(local.date())}"
+        hour = f"{local:%I:%M %p}".lstrip("0")
         if str(aid) in held:
-            if day not in pending:
-                pending.append(day)
+            pending.setdefault(day, hour)
             continue
         if len(lines) < 6:
             done = " (confirmed)" if status is AssignmentStatus.CONFIRMED else ""
-            hour = f"{local:%I:%M %p}".lstrip("0")
             lines.append(f"{day}, {hour}: {ministry} ({role}){done}")
     if not lines and not pending:
         return [
@@ -369,7 +368,13 @@ def _schedule(ctx: Inbound) -> list[BotReply]:
         ]
     body = "Here's when you're serving:\n" + "\n".join(lines) if lines else ""
     if pending:
-        body += ("\n" if body else "") + f"Your leaders will confirm {_and(pending)} with you."
+        # The time only when another place that day is listed, so the day isn't ambiguous;
+        # never the second clashing time, which would show her the double booking.
+        days = [
+            f"{day} at {hour}" if any(x.startswith(f"{day},") for x in lines) else day
+            for day, hour in pending.items()
+        ]
+        body += ("\n" if body else "") + f"Your leaders will confirm {_and(days)} with you."
         if not lines:
             body += f" Nothing else is on your rosters for the next {SCHEDULE_WEEKS} weeks."
     return [_say(ctx, body)]
