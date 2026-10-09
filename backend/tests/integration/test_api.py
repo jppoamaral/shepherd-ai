@@ -109,6 +109,8 @@ def test_only_known_endpoints_write(client: TestClient) -> None:
         # Resolve and its undo: a proposal the leader approves at once, via ApprovalService.
         ("post", "/churches/{church_id}/huddles/{huddle_id}/accept-replacement"),
         ("post", "/churches/{church_id}/huddles/{huddle_id}/undo-replacement"),
+        # Ask Shepherd answers questions; it only reads (drafts come back to copy).
+        ("post", "/churches/{church_id}/ministries/{ministry_id}/ask"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/memory/notes"),
         ("delete", "/churches/{church_id}/ministries/{ministry_id}/memory/{memory_id}"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/suggestion/approve"),

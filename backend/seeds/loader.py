@@ -44,7 +44,7 @@ from app.domain.enums import (
 from app.services.gatherings import ensure_gatherings
 from app.services.memory import propose_memory
 from seeds.generate import generate_volunteers
-from seeds.spec import ChurchSeed, PersonSeed
+from seeds.spec import ChurchSeed, PersonSeed, demo_sunday
 
 GATHERING_HORIZON_WEEKS = 16
 
@@ -187,12 +187,13 @@ def load_church(session: Session, spec: ChurchSeed, today: date) -> tuple[Church
                 )
             )
         for b in p.blockouts:
+            start, end = b.dates(today)
             session.add(
                 Blockout(
                     church_id=cid,
                     person_id=person.id,
-                    start_date=today + timedelta(days=b.start_offset_days),
-                    end_date=today + timedelta(days=b.end_offset_days),
+                    start_date=start,
+                    end_date=end,
                     stated_by=StatedBy.VOLUNTEER,
                 )
             )
@@ -214,8 +215,7 @@ def load_church(session: Session, spec: ChurchSeed, today: date) -> tuple[Church
     tz = ZoneInfo(spec.timezone)
     # The demo week starts at the first upcoming Sunday, so a Sunday and the
     # Wednesday after it fall in the same (Sunday-to-Saturday) church week.
-    demo_sunday = today + timedelta(days=(6 - today.weekday()) % 7)
-    now_local = datetime.combine(demo_sunday, datetime.min.time(), tzinfo=tz)
+    now_local = datetime.combine(demo_sunday(today), datetime.min.time(), tzinfo=tz)
     for a in spec.assignments:
         gathering_id = session.scalar(
             select(Gathering.id)
@@ -324,13 +324,7 @@ def _fill_rosters(
     for person_id, gathering_id, role_id in rows:
         serving.add(person_id)
         filled[(gathering_id, role_id)] = filled.get((gathering_id, role_id), 0) + 1
-    blocked = {
-        p.key: [
-            (today + timedelta(days=b.start_offset_days), today + timedelta(days=b.end_offset_days))
-            for b in p.blockouts
-        ]
-        for p in people_specs
-    }
+    blocked = {p.key: [b.dates(today) for b in p.blockouts] for p in people_specs}
     minimums = {(m.name, r.name): r.minimums for m in spec.ministries for r in m.roles}
     writer = AssignmentWriter(session, cid)
 

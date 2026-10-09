@@ -158,6 +158,14 @@ def grace_community() -> ChurchSeed:
                 skills={KIDS: {"Helper": EXP, "Check-in": EXP}},
             ),
             PersonSeed("rachel", "Rachel Turner", skills={KIDS: {"Helper": NEW}}),
+            # A veteran helper who can't make the demo Sunday: Ask Shepherd says it left her
+            # out when finding cover for Anna (it never knows or says why).
+            PersonSeed(
+                "olivia",
+                "Olivia Grant",
+                skills={KIDS: {"Helper": VET}},
+                blockouts=[BlockoutSeed(0, 0, from_demo_sunday=True)],
+            ),
             PersonSeed(
                 "emily",
                 "Emily Brooks",

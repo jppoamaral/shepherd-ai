@@ -168,3 +168,18 @@ class QuestionKind(StrEnum):
     NOT_ON_TEAM = "not_on_team"
     WHICH_GATHERING = "which_gathering"
     UNKNOWN_ROLE = "unknown_role"
+
+
+class AskIntent(StrEnum):
+    """What a leader's Ask Shepherd question is about. Code answers each one."""
+
+    NEEDS_ME = "needs_me"  # what needs me this week
+    FREE_ON = "free_on"  # who is free on a date
+    REPLACE = "replace"  # who can take someone's place
+    SERVING_A_LOT = "serving_a_lot"  # who is serving a lot right now
+    DRAFT_REMINDER = "draft_reminder"  # reminders for a date's roster
+    DRAFT_MESSAGE = "draft_message"  # a 1:1 ask to one person
+    REMEMBER = "remember"  # what Shepherd remembers about someone
+    AVAILABILITY = "availability"  # someone's blocked-out dates
+    PRIVATE = "private"  # health, family or personal reasons: never answered
+    UNKNOWN = "unknown"

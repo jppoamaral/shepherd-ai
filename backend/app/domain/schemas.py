@@ -2,11 +2,12 @@
 
 import uuid
 from datetime import date, datetime, time
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.enums import (
+    AskIntent,
     AssignmentStatus,
     Experience,
     FindingStatus,
@@ -428,3 +429,70 @@ class SuggestedAssignment(BaseModel):
 class SuggestionApprove(BaseModel):
     person_id: uuid.UUID
     assignments: list[SuggestedAssignment] = Field(min_length=1)
+
+
+# ---------------------------------------------------------------------------
+# Ask Shepherd
+# ---------------------------------------------------------------------------
+
+
+class AskIn(BaseModel):
+    """A typed question, or a tapped suggestion/action (an intent with its details)."""
+
+    person_id: uuid.UUID  # the leader asking
+    question: str | None = Field(default=None, max_length=500)
+    intent: AskIntent | None = None
+    about_person_id: uuid.UUID | None = None
+    on: date | None = None
+    role_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _question_or_intent(self) -> "AskIn":
+        if not (self.question and self.question.strip()) and self.intent is None:
+            raise ValueError("ask a question or pick a suggestion")
+        return self
+
+
+class AskAction(BaseModel):
+    """A button under an answer: ask a follow-up, or open a screen in the app."""
+
+    label: str
+    kind: Literal["ask", "link"]
+    intent: AskIntent | None = None
+    about_person_id: uuid.UUID | None = None
+    on: date | None = None
+    role_id: uuid.UUID | None = None
+    href: str | None = None  # app path for links, e.g. "/huddle/<finding id>"
+
+
+class AskPerson(BaseModel):
+    person_id: uuid.UUID
+    name: str
+    experience: Experience | None
+    detail: str
+
+
+class AskDraft(BaseModel):
+    """A 1:1 message for the leader to copy. Never stored or sent by Shepherd."""
+
+    to_person_id: uuid.UUID
+    to: str
+    body: str
+
+
+class AskAnswer(BaseModel):
+    intent: AskIntent
+    text: str
+    people: list[AskPerson] = []
+    notes: list[str] = []
+    drafts: list[AskDraft] = []
+    actions: list[AskAction] = []
+    source: str | None = None  # "From ...", so the leader can check the answer
+    looked_at: list[str] = []
+    refused: bool = False  # "Can't help with that"
+
+
+class AskStart(BaseModel):
+    ministry: str
+    greeting: str
+    suggestions: list[AskAction]

@@ -1,7 +1,7 @@
 """Declarative shapes for seed data. Pure data; the loader turns these into rows."""
 
 from dataclasses import dataclass, field
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from app.domain.enums import Experience, GatheringKind, MemoryKind, MemorySource, Period, Weekday
 
@@ -50,10 +50,23 @@ class AvailabilitySeed:
 
 @dataclass(frozen=True)
 class BlockoutSeed:
-    """Relative to the seed's `today`, inclusive."""
+    """Relative to the seed's `today` (or to the demo Sunday), inclusive."""
 
     start_offset_days: int
     end_offset_days: int
+    from_demo_sunday: bool = False
+
+    def dates(self, today: date) -> tuple[date, date]:
+        base = demo_sunday(today) if self.from_demo_sunday else today
+        return (
+            base + timedelta(days=self.start_offset_days),
+            base + timedelta(days=self.end_offset_days),
+        )
+
+
+def demo_sunday(today: date) -> date:
+    """The demo week starts at the first upcoming Sunday (today, if it is Sunday)."""
+    return today + timedelta(days=(6 - today.weekday()) % 7)
 
 
 @dataclass(frozen=True)
