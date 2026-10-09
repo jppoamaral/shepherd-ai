@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import date, time
 
-from app.domain.enums import Experience, GatheringKind, Period, Weekday
+from app.domain.enums import Experience, GatheringKind, MemoryKind, MemorySource, Period, Weekday
 
 
 @dataclass(frozen=True)
@@ -81,6 +81,16 @@ class AssignmentSeed:
 
 
 @dataclass(frozen=True)
+class MemorySeed:
+    ministry: str
+    kind: MemoryKind
+    text: str
+    proposed_from: MemorySource
+    about: str | None = None  # person key
+    confirmed_by: str | None = None  # person key; None = still pending ("Should I remember this?")
+
+
+@dataclass(frozen=True)
 class ChurchSeed:
     name: str
     timezone: str
@@ -95,3 +105,4 @@ class ChurchSeed:
     assignments: list[AssignmentSeed] = field(default_factory=list)
     generated_preferences: list[tuple[int, Period]] = field(default_factory=list)
     warning_routing: dict[str, list[str]] = field(default_factory=dict)
+    memories: list[MemorySeed] = field(default_factory=list)

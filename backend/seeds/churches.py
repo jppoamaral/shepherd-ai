@@ -4,7 +4,7 @@ Shepherd during onboarding; nothing in app code assumes them.
 
 from datetime import date, time
 
-from app.domain.enums import Experience, GatheringKind, Period, Weekday
+from app.domain.enums import Experience, GatheringKind, MemoryKind, MemorySource, Period, Weekday
 from seeds.spec import (
     AssignmentSeed,
     AvailabilitySeed,
@@ -12,6 +12,7 @@ from seeds.spec import (
     ChurchSeed,
     GatheringTypeSeed,
     LeaderSeed,
+    MemorySeed,
     MinistrySeed,
     PersonSeed,
     RoleSeed,
@@ -214,6 +215,38 @@ def grace_community() -> ChurchSeed:
             AssignmentSeed("megan", KIDS, "Check-in", "sun_0930"),
             AssignmentSeed("david", WORSHIP, "Worship Leader", "sun_0930"),
             AssignmentSeed("david", WORSHIP, "Worship Leader", "sun_1100"),
+        ],
+        memories=[
+            MemorySeed(
+                KIDS,
+                MemoryKind.HABIT,
+                "You always pair Emily with Rachel.",
+                MemorySource.LEADER_EDIT,
+                about="rachel",
+                confirmed_by="sarah",
+            ),
+            MemorySeed(
+                KIDS,
+                MemoryKind.PREFERENCE,
+                "Emily prefers the 9:30 service.",
+                MemorySource.VOLUNTEER,
+                about="emily",
+                confirmed_by="sarah",
+            ),
+            MemorySeed(
+                WORSHIP,
+                MemoryKind.RULE,
+                "Keep the band together for a whole month.",
+                MemorySource.LEADER_NOTE,
+                confirmed_by="david",
+            ),
+            MemorySeed(
+                KIDS,
+                MemoryKind.GROWTH,
+                "Rachel is ready to lead a class.",
+                MemorySource.LEADER_NOTE,
+                about="rachel",
+            ),
         ],
         generated_volunteers=32,
         generated_preferences=[(1, Period.WEEK), (2, Period.MONTH), (3, Period.MONTH)],

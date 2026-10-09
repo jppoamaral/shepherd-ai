@@ -15,6 +15,8 @@ from app.domain.enums import (
     HuddleStatus,
     IntakeStatus,
     MembershipStatus,
+    MemoryKind,
+    MemorySource,
     OnboardingStatus,
     OnboardingTopic,
     Period,
@@ -326,3 +328,37 @@ class HuddleChoose(BaseModel):
 class HuddleResolve(BaseModel):
     person_id: uuid.UUID
     outcome: str = Field(min_length=1, max_length=2_000)
+
+
+class MemoryItemOut(BaseModel):
+    id: uuid.UUID
+    kind: MemoryKind
+    text: str
+    about: str | None
+    proposed_from: MemorySource
+    confirmed_by: str
+    created_at: datetime
+
+
+class MemoryPendingOut(BaseModel):
+    proposal_id: uuid.UUID
+    kind: MemoryKind
+    text: str
+    about: str | None
+    question: str  # "Should I remember this?"
+
+
+class MemoryOut(BaseModel):
+    ministry_id: uuid.UUID
+    ministry: str
+    items: list[MemoryItemOut]
+    pending: list[MemoryPendingOut]
+
+
+class MemoryNote(BaseModel):
+    """A leader's note in chat; Shepherd proposes it as a memory to confirm."""
+
+    person_id: uuid.UUID
+    text: str = Field(min_length=1, max_length=500)
+    kind: MemoryKind = MemoryKind.RULE
+    about_person_id: uuid.UUID | None = None

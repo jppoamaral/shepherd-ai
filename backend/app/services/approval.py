@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Person, Proposal
 from app.db.repositories.audit import AuditLogRepository
 from app.domain.enums import ProposalStatus
-from app.services import profile_apply, roster_apply
+from app.services import memory_apply, profile_apply, roster_apply
 from app.services.errors import ApprovalError, NotAllowed, NotFound
 
 
@@ -42,6 +42,9 @@ HANDLERS: Mapping[str, ProposalHandler] = {
         may_decide=roster_apply.may_decide,
         apply=roster_apply.apply,
         on_reject=roster_apply.on_reject,
+    ),
+    memory_apply.PROPOSAL_TYPE: ProposalHandler(
+        may_decide=memory_apply.may_decide, apply=memory_apply.apply
     ),
 }
 

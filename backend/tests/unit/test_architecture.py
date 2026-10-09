@@ -29,6 +29,7 @@ WRITE_REPOSITORIES = (
     "app.db.repositories.messages",
     "app.services.profile_apply",
     "app.services.roster_apply",
+    "app.services.memory_apply",
 )
 # ApprovalService, and the handlers it calls, which write through the repositories.
 WRITE_REPOSITORY_IMPORTERS = {"app.services.approval", "app.services.roster_apply"}

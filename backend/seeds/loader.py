@@ -20,6 +20,7 @@ from app.db.models import (
     LeaderAvailability,
     LoadRule,
     Membership,
+    MemoryItem,
     Ministry,
     MinistryLeader,
     Person,
@@ -39,6 +40,7 @@ from app.domain.enums import (
     StatedBy,
 )
 from app.services.gatherings import ensure_gatherings
+from app.services.memory import propose_memory
 from seeds.generate import generate_volunteers
 from seeds.spec import ChurchSeed
 
@@ -232,6 +234,31 @@ def load_church(session: Session, spec: ChurchSeed, today: date) -> tuple[Church
             status=AssignmentStatus.APPROVED,
             source=AssignmentSource.LEADER,
         )
+
+    for memory in spec.memories:
+        about = people[memory.about].id if memory.about else None
+        if memory.confirmed_by:
+            session.add(
+                MemoryItem(
+                    church_id=cid,
+                    ministry_id=ministries[memory.ministry].id,
+                    about_person_id=about,
+                    kind=memory.kind,
+                    text=memory.text,
+                    proposed_from=memory.proposed_from,
+                    confirmed_by_person_id=people[memory.confirmed_by].id,
+                )
+            )
+        else:
+            propose_memory(
+                session,
+                cid,
+                ministry_id=ministries[memory.ministry].id,
+                text=memory.text,
+                kind=memory.kind,
+                proposed_from=memory.proposed_from,
+                about_person_id=about,
+            )
 
     AuditLogRepository(session, cid).append(
         actor="seed",
