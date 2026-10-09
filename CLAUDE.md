@@ -13,7 +13,7 @@ Church volunteer coordination app. Shepherd helps ministry leaders lead the peop
 - **Agents:** one worker process with APScheduler (nightly and per-cycle jobs); on-request agents are triggered by the API
 - **Roster solver:** Google OR-Tools CP-SAT
 - **Language model:** Azure OpenAI via the official `openai` SDK, behind a small `LLMClient` interface, with `FakeLLM` for tests. Structured outputs (JSON schema / Pydantic) for every model call.
-- **Frontend:** Angular PWA in `/frontend` (later milestone; placeholder for now). The API publishes OpenAPI so a TypeScript client can be generated.
+- **Frontend:** Angular 22 in `/frontend` (standalone components, signals), styled only with the Claude Design tokens and `sh-*` classes in `frontend/design-system/` (read its `USAGE.md` and `screens/README.md` first). API types are generated from the backend's OpenAPI (`npm run api:types`). Runs on port 4300.
 - **Tooling:** uv (deps), ruff (lint + format), mypy (strict on `app/domain` and `app/services`), pytest
 - **Local first:** docker-compose for Postgres, API and worker; settings in `.env` (see `.env.example`). Azure deployment comes later; add no cloud resources yet.
 - **Channels:** `ChannelAdapter` interface + `CopyPasteChannel` (renders approved messages as a list). Telegram comes later.
@@ -46,7 +46,7 @@ Church volunteer coordination app. Shepherd helps ministry leaders lead the peop
   /migrations     Alembic
   /seeds          synthetic data
   /tests          unit, integration, and /evals for model behavior
-/frontend         Angular (placeholder for now)
+/frontend         Angular 22 app (src/) built on the Claude Design system (design-system/)
 /docs             PROJECT_BRIEF.md, adr/
 docker-compose.yml, .env.example, CLAUDE.md
 ```
@@ -59,6 +59,8 @@ Run from the repo root unless noted. (Established in Milestone 1; update this se
 | --- | --- |
 | Start everything (db, migrate, seed, api, worker) | `docker compose up --build` |
 | Fresh demo data (see `docs/demo.md`) | `docker compose down -v && docker compose up -d --build` |
+| Frontend (Angular, port 4300) | `cd frontend && npm install && npm start` |
+| Frontend build / API types | `cd frontend && npm run build` · `npm run api:types` (backend running) |
 | Install deps (local) | `cd backend && uv sync` |
 | Run API locally | `cd backend && uv run uvicorn app.main:app --reload` |
 | Run worker locally | `cd backend && uv run python -m app.worker` |

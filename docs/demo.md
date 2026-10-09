@@ -2,11 +2,16 @@
 
 Synthetic data only. No login yet: the app picks "who am I" from the leaders list.
 
-## Reset to a fresh demo
+## Run it
 
 ```
-docker compose down -v && docker compose up -d --build
+docker compose down -v && docker compose up -d --build   # fresh demo data + API on :8000
+cd frontend && npm install && npm start                  # app on http://localhost:4300
 ```
+
+Reset the data (first command) before presenting: approving, recording a huddle or
+deleting a memory changes the record. Port 4300 is used because 4200 belongs to another
+local project; CORS allows both.
 
 Seeds are relative to today. The **demo week** starts at the first upcoming Sunday; in it, at **Grace Community**:
 
@@ -20,25 +25,26 @@ Seeds are relative to today. The **demo week** starts at the first upcoming Sund
 | **Memory** | Kids: "You always pair Emily with Rachel.", "Emily prefers the 9:30 service." Worship: "Keep the band together for a whole month." | Pending: "Should I remember this? 'Rachel is ready to lead a class.'" |
 | **A real gap** | Media's Youth roster has Sound but no Slides | Tom (Media scheduler) |
 
-## Suggested script (5 minutes)
+## Suggested script (5 minutes, in the app)
 
-1. **Sarah's weekly briefing:** two warnings, Anna's double booking and Anna's overload.
-2. Tap **Find a time to talk** on the double booking. Sarah and David are offered Saturday slots, with a neutral agenda: the overlap, plus one suggested replacement from each leader's own team. Anna isn't invited.
-3. **Choose a slot**, then **resolve** with the leaders' decision. Checks re-run; Shepherd reassigns nobody.
-4. **Kids roster:** Anna is flagged `double_booked` and `over_load`, with experience levels shown.
-5. **David's briefing** also shows Hannah's Wednesday clash, flagged the same way as a Sunday conflict.
-6. **Memory:** confirmed Kids memories, plus a pending "Should I remember this?". Try adding a note with a health detail: it's refused (privacy).
-7. **Approval queue:** approve the memory. Nothing is saved until a person approves, and every decision is in the audit log.
+1. Open http://localhost:4300 and pick **Sarah Collins** ("Who's leading today?").
+2. **Home** (Kids): "2 things need you this week". The **shared volunteer** card (Anna Parker on Kids and Worship at the same time) and the **good to know** card (Anna serving 4 times, above her preferred 2). The approval queue shows reminders (sample), a **memory suggestion** and the unconnected-people notice (sample).
+3. Click **Find a time to talk**. Sarah and David get three Saturday slots, Shepherd's suggested replacement for each side, and "Anna isn't invited". Pick a time, **Confirm time**, then **Record what you decided**. Shepherd moves nobody.
+4. **Rosters**: Shepherd's suggested roster with a reason on every line (Emily is placed at 9:30 because she prefers it). Beside it, this week as planned, with Anna flagged double-booked and over load. **Choose this roster**, swap someone, **Approve roster**: it's recorded through the approval queue.
+5. **Memory**: confirmed memories grouped by kind; **Remember** the pending suggestion. Type a note with a health detail ("she just had surgery"): Shepherd refuses to keep it.
+6. **Switch leader** to David Morales: he sees both double bookings (Anna on Sunday, Hannah on Wednesday). Mike Harris (Media and Hospitality) only sees Hannah's.
+
+On Home, the absence check-in, reminders, unconnected people and the failed send ("Review and send" shows it) are **fixed sample content**; those features come in later milestones.
 
 ## API map for the frontend
 
-Base URL `http://localhost:8000`. CORS allows `http://localhost:4200`. OpenAPI is at `/openapi.json`, and an interactive version at `/docs`.
+Base URL `http://localhost:8000`. CORS allows `http://localhost:4300` (the app) and `:4200`. OpenAPI is at `/openapi.json`, and an interactive version at `/docs`.
 
 | Screen | Calls |
 | --- | --- |
 | Who am I | `GET /churches`, `GET /churches/{cid}/leaders` |
 | Weekly briefing | `GET /churches/{cid}/leaders/{person_id}/briefing?start=YYYY-MM-DD` |
-| Rosters | `GET /churches/{cid}/ministries`, `GET /churches/{cid}/ministries/{mid}/roster?start=&end=` |
+| Rosters | `GET /churches/{cid}/ministries/{mid}/suggestion`, `POST …/suggestion/approve {person_id, assignments}`, `GET /churches/{cid}/ministries/{mid}/roster?start=&end=` |
 | Conflict huddle | `POST /churches/{cid}/findings/{finding_id}/huddle {person_id}`, `GET /churches/{cid}/huddles/{id}`, `POST …/huddles/{id}/choose {person_id, slot_id}`, `POST …/huddles/{id}/resolve {person_id, outcome}` |
 | Memory | `GET /churches/{cid}/ministries/{mid}/memory`, `POST …/memory/notes {person_id, text, kind?, about_person_id?}`, `DELETE …/memory/{id}?person_id=` |
 | Approval queue | `GET /churches/{cid}/proposals?status=pending` (each has `title` and `summary`), `POST …/proposals/{id}/approve` or `/reject` with `{person_id}` |
