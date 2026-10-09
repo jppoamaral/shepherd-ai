@@ -3,6 +3,7 @@
 from app.db.models.church import Church, Gathering, GatheringType, LoadRule
 from app.db.models.coordination import Finding, Huddle, MemoryItem, Message
 from app.db.models.governance import AuditLog, Proposal
+from app.db.models.intake import ScheduleIntake
 from app.db.models.ministry import LeaderAvailability, Ministry, MinistryLeader, Role, RoleMinimum
 from app.db.models.onboarding import OnboardingSession
 from app.db.models.people import (
@@ -40,4 +41,5 @@ __all__ = [
     "RoleMinimum",
     "RoleSkill",
     "RosterSuggestion",
+    "ScheduleIntake",
 ]

@@ -153,3 +153,18 @@ class Recipient(StrEnum):
 
     SCHEDULER = "scheduler"
     APPROVER = "approver"
+
+
+class IntakeStatus(StrEnum):
+    NEEDS_ANSWERS = "needs_answers"
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class QuestionKind(StrEnum):
+    AMBIGUOUS_NAME = "ambiguous_name"
+    UNKNOWN_NAME = "unknown_name"
+    NOT_ON_TEAM = "not_on_team"
+    WHICH_GATHERING = "which_gathering"
+    UNKNOWN_ROLE = "unknown_role"
