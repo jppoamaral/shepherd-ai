@@ -134,6 +134,8 @@ class ProposalOut(Schema):
     # Plain language for the approval queue, filled in by the API.
     title: str = ""
     summary: str = ""
+    # Reminders: how many will actually be sent (people whose place changed are left out).
+    count: int | None = None
 
 
 class OnboardingStart(BaseModel):

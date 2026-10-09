@@ -40,6 +40,24 @@ def reminder_text(first: str, ministry: str, role: str, start: datetime, today: 
     )
 
 
+def still_on_roster(session: Session, church_id: uuid.UUID, item: dict[str, str]) -> bool:
+    """Whether a drafted reminder still matches the roster: same person, place not declined.
+
+    Rosters change after drafting (a huddle Resolve, a decline, a swap). The approval card
+    and sending both use this, so a reminder is never sent for a place someone left.
+    """
+    assignment = session.scalar(
+        select(Assignment).where(
+            Assignment.church_id == church_id, Assignment.id == uuid.UUID(item["assignment_id"])
+        )
+    )
+    return (
+        assignment is not None
+        and str(assignment.person_id) == item["person_id"]
+        and assignment.status is not AssignmentStatus.DECLINED
+    )
+
+
 def draft_reminders(
     session: Session, church_id: uuid.UUID, ministry_id: uuid.UUID, today: date
 ) -> list[Proposal]:

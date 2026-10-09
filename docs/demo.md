@@ -31,7 +31,13 @@ Seeds are relative to today. The **demo week** starts at the first upcoming Sund
 ## Demos
 
 Each demo starts from fresh data (reset first) with **Sarah Collins** picked on "Who's leading
-today?". Dates below assume the demo Sunday is Oct 11; the app always shows the real dates.
+today?".
+
+**Order matters: Demo 1, 2 and 4 all use Anna Parker.** Resolve in Demo 1 (or Put Caleb in in
+Demo 4) moves Anna off the Kids roster, and after that Sarah's reminders leave her out ("Not
+sending to Anna Parker"). For one continuous run, do **Demo 4 first** (send reminders, Anna
+declines, fill the gap), then Demo 2 and 3; or reset between demos. Anna's Worship place is
+untouched either way: as **David Morales**, sending Worship reminders still reaches her chat. Dates below assume the demo Sunday is Oct 11; the app always shows the real dates.
 Generated volunteers' names (Caleb Baker, Anna Peterson, …) can differ from these notes, and
 that's fine: every answer comes from the data.
 

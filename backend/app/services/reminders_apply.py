@@ -14,8 +14,7 @@ from app.channels.base import OutgoingMessage
 from app.channels.factory import channel_for, channel_name
 from app.db.models import Assignment, Church, MinistryLeader, Person, Proposal
 from app.db.repositories.messages import MessageWriter
-from app.domain.enums import AssignmentStatus
-from app.services.reminders import PROPOSAL_TYPE
+from app.services.reminders import PROPOSAL_TYPE, still_on_roster
 
 __all__ = ["PROPOSAL_TYPE", "apply", "may_decide"]
 
@@ -51,12 +50,7 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
                 Assignment.church_id == cid, Assignment.id == uuid.UUID(item["assignment_id"])
             )
         )
-        if (
-            person is None
-            or assignment is None
-            or assignment.person_id != person.id
-            or assignment.status is AssignmentStatus.DECLINED
-        ):
+        if person is None or assignment is None or not still_on_roster(session, cid, item):
             changed += 1  # the roster moved on since the draft; nothing to remind
             continue
         if person.stopped:

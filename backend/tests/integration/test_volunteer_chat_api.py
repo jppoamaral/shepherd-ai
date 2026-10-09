@@ -331,3 +331,28 @@ def test_a_tapped_button_sends_its_label_and_means_its_number(
         "Okay, I've let your leader know you can't commit for Oct 11."
     ]
     assert annas_kids_place(session, grace).status is AssignmentStatus.APPROVED
+
+
+def test_a_reminder_for_a_place_someone_left_is_not_offered_or_sent(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    """Drafted, then the roster changed (a huddle Resolve moved Anna off Kids)."""
+    client.post(f"/churches/{grace['id']}/ministries/{grace['kids']}/reminders/draft")
+    place = annas_kids_place(session, grace)
+    place.person_id = uuid.UUID(grace["people"]["Anna Peterson"])  # fixture: the roster moved on
+    session.flush()
+
+    pending = client.get(f"/churches/{grace['id']}/proposals", params={"status": "pending"}).json()
+    (card,) = [
+        p
+        for p in pending
+        if p["type"] == "reminders" and p["payload"]["ministry_id"] == grace["kids"]
+    ]
+    assert card["count"] == 3 and card["title"].startswith("3 reminders ready for")
+    assert "To Anna Parker" not in card["summary"]
+    assert card["summary"].endswith(
+        "Not sending to Anna Parker: no longer on this roster since the reminders were drafted."
+    )
+
+    send_kids_reminders(client, grace)
+    assert chat(client, grace, "Anna Parker")["messages"] == []

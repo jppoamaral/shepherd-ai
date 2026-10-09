@@ -111,7 +111,8 @@ export class HomePage {
   }
 
   protected sendReminders(p: Proposal): void {
-    this.decide(p, 'approve', "Sent. Each person gets theirs 1:1 (in this demo, in the volunteer chat).");
+    const n = this.count(p);
+    this.decide(p, 'approve', `Sent ${n} ${n === 1 ? 'reminder' : 'reminders'}, each 1:1.`);
   }
 
   /** Fill an open slot with the person Shepherd found free: recorded through the approval queue. */
@@ -142,8 +143,18 @@ export class HomePage {
     );
   }
 
+  /** How many reminders will actually go out (the server leaves out places that changed). */
   protected count(p: Proposal): number {
-    return (p.payload['messages'] as unknown[] | undefined)?.length ?? 0;
+    return p.count ?? (p.payload['messages'] as unknown[] | undefined)?.length ?? 0;
+  }
+
+  /** The card's blocks: one message per person, then any "Not sending to …" note. */
+  protected messagesOf(p: Proposal): string[] {
+    return (p.summary ?? '').split('\n\n').filter((b) => b.startsWith('To '));
+  }
+
+  protected notSending(p: Proposal): string | undefined {
+    return (p.summary ?? '').split('\n\n').find((b) => b.startsWith('Not sending'));
   }
 
   protected first(name: string): string {

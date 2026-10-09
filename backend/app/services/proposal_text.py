@@ -11,6 +11,7 @@ from app.db.models import Church, Gathering, GatheringType, Ministry, Person, Ro
 from app.domain.profile import ChurchProfileDraft
 from app.domain.schemas import ProposalOut
 from app.services.profile import format_time, render_summary
+from app.services.reminders import still_on_roster
 
 
 def describe(
@@ -20,7 +21,7 @@ def describe(
     return [p.model_copy(update=_text(p, names)) for p in proposals]
 
 
-def _text(p: ProposalOut, names: "_Names") -> dict[str, str]:
+def _text(p: ProposalOut, names: "_Names") -> dict[str, Any]:
     payload: dict[str, Any] = p.payload
     if p.type == "church_profile":
         return {
@@ -54,14 +55,22 @@ def _text(p: ProposalOut, names: "_Names") -> dict[str, str]:
             "summary": f"“{payload['text']}”{about}",
         }
     if p.type == "reminders":
-        messages = payload.get("messages", [])
-        n = len(messages)
+        current: list[dict[str, str]] = []
+        left: list[dict[str, str]] = []
+        for m in payload.get("messages", []):
+            (current if still_on_roster(names.session, names.church_id, m) else left).append(m)
+        n = len(current)
+        blocks = [f"To {names.person(m['person_id'])}: {m['body']}" for m in current]
+        if left:
+            who = ", ".join(names.person(m["person_id"]) for m in left)
+            blocks.append(
+                f"Not sending to {who}: no longer on this roster since the reminders were drafted."
+            )
         return {
             "title": f"{n} reminder{'s' if n != 1 else ''} ready for "
             f"{names.gathering(payload['gathering_id'])}",
-            "summary": "\n\n".join(
-                f"To {names.person(m['person_id'])}: {m['body']}" for m in messages
-            ),
+            "summary": "\n\n".join(blocks),
+            "count": n,
         }
     return {"title": p.type.replace("_", " ").capitalize(), "summary": ""}
 

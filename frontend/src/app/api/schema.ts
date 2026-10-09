@@ -1651,6 +1651,8 @@ export interface components {
              * @default
              */
             summary: string;
+            /** Count */
+            count?: number | null;
         };
         /**
          * ProposalStatus
