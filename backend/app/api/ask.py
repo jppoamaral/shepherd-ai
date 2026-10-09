@@ -7,10 +7,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.routes import ReaderDep
-from app.domain.schemas import AskAnswer, AskIn, AskStart
+from app.domain.schemas import AskAnswer, AskIn, AskSendIn, AskSendOut, AskStart
 from app.llm.client import LLMClient
 from app.llm.factory import LLMNotConfigured, get_llm
-from app.services.ask import AskNotAllowed, AskNotFound, ask, ask_start
+from app.services.ask import AskNotAllowed, AskNotFound, ask, ask_start, send_drafts
+from app.services.errors import ApprovalError, NotAllowed
 
 router = APIRouter(tags=["ask"])
 
@@ -54,7 +55,7 @@ def start(
 def answer(
     reader: ReaderDep, ministry_id: uuid.UUID, body: AskIn, llm: AskLLMDep, today: TodayDep
 ) -> AskAnswer:
-    """Answer one question. Read-only: drafts come back to copy; nothing is stored or sent."""
+    """Answer one question. Read-only: drafts come back to read; nothing is stored or sent."""
     try:
         result = ask(reader.session, reader.church_id, ministry_id, body, llm, today)
     except AskNotFound as error:
@@ -62,4 +63,22 @@ def answer(
     except AskNotAllowed as error:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
     reader.session.commit()  # same as the briefing: re-running checks may refresh findings
+    return result
+
+
+@router.post("/churches/{church_id}/ministries/{ministry_id}/ask/send")
+def send(reader: ReaderDep, ministry_id: uuid.UUID, body: AskSendIn, today: TodayDep) -> AskSendOut:
+    """The leader taps Send on drafts: their approval. Sent 1:1 through ApprovalService."""
+    try:
+        result = send_drafts(reader.session, reader.church_id, ministry_id, body, today)
+    except AskNotFound as error:
+        reader.session.rollback()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+    except (AskNotAllowed, NotAllowed) as error:
+        reader.session.rollback()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
+    except ApprovalError as error:
+        reader.session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    reader.session.commit()
     return result

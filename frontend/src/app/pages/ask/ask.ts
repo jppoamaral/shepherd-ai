@@ -3,7 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
-import type { AskAction, AskAnswer, AskIn, AskStart } from '../../api/types';
+import type { AskAction, AskAnswer, AskDraft, AskIn, AskStart } from '../../api/types';
 import { Session } from '../../core/session';
 import { initials } from '../../core/format';
 import { Icon } from '../../ui/icon';
@@ -22,7 +22,8 @@ interface Turn {
 /**
  * Ask Shepherd: questions in the leader's own words, answered from the record.
  * The conversation lives only on this page (nothing is stored). Drafts are for the
- * leader to edit and copy; Shepherd never sends them.
+ * leader to edit, then copy or Send: tapping Send is their approval, and Shepherd sends
+ * each message 1:1 through the church's channel.
  */
 @Component({
   selector: 'sh-ask',
@@ -43,6 +44,10 @@ export class AskPage {
   protected readonly edited = signal<Record<string, string>>({});
   protected readonly editing = signal<string | null>(null);
   protected readonly copied = signal<string | null>(null);
+  /** Drafts already sent, by draft key; the turn being sent; each turn's result line. */
+  protected readonly sent = signal<Record<string, true>>({});
+  protected readonly sendingTurn = signal<number | null>(null);
+  protected readonly sendResult = signal<Record<number, string>>({});
 
   protected readonly thinking = computed(() => this.turns().some((t) => t.state === 'thinking'));
   protected readonly lookedAt = computed(() => {
@@ -108,6 +113,41 @@ export class AskPage {
 
   protected setDraftBody(key: string, body: string): void {
     this.edited.update((all) => ({ ...all, [key]: body }));
+  }
+
+  /** Drafts in this answer Shepherd can still send (connected, not sent yet). */
+  protected sendable(turn: Turn): number[] {
+    return (turn.answer?.drafts ?? [])
+      .map((d, i) => (d.can_send && !this.sent()[this.draftKey(turn, i)] ? i : -1))
+      .filter((i) => i >= 0);
+  }
+
+  /** Send these drafts as the leader edited them. The tap is the approval. */
+  protected sendDrafts(turn: Turn, indexes: number[]): void {
+    const drafts = turn.answer?.drafts ?? [];
+    if (!indexes.length || this.sendingTurn() !== null) return;
+    const s = this.session;
+    const chosen: AskDraft[] = indexes.map((i) => ({ ...drafts[i], body: this.draftBody(turn, i) }));
+    this.editing.set(null);
+    this.sendingTurn.set(turn.id);
+    this.api.sendDrafts(s.churchId(), s.ministryId(), s.personId(), chosen).subscribe({
+      next: (out) => {
+        this.sendingTurn.set(null);
+        const sentTo = new Set(out.sent);
+        this.sent.update((all) => {
+          const next = { ...all };
+          indexes.forEach((i) => {
+            if (sentTo.has(drafts[i].to_person_id)) next[this.draftKey(turn, i)] = true;
+          });
+          return next;
+        });
+        this.sendResult.update((all) => ({ ...all, [turn.id]: out.text }));
+      },
+      error: (e) => {
+        this.sendingTurn.set(null);
+        this.sendResult.update((all) => ({ ...all, [turn.id]: e?.error?.detail ?? "That didn't send. Please try again." }));
+      },
+    });
   }
 
   protected first(name: string): string {

@@ -487,11 +487,39 @@ class AskPerson(BaseModel):
 
 
 class AskDraft(BaseModel):
-    """A 1:1 message for the leader to copy. Never stored or sent by Shepherd."""
+    """A 1:1 message for the leader to send (Send is their approval) or copy."""
 
     to_person_id: uuid.UUID
     to: str
     body: str
+    kind: Literal["ask", "reminder"]  # asking someone to serve a place, or a reminder
+    gathering_id: uuid.UUID
+    role_id: uuid.UUID
+    assignment_id: uuid.UUID | None = None  # a reminder's place on the roster
+    can_send: bool = True
+    why_not: str | None = None  # "Caleb hasn't connected to chat yet."
+
+
+class AskSendDraft(BaseModel):
+    to_person_id: uuid.UUID
+    kind: Literal["ask", "reminder"]
+    body: str = Field(min_length=1, max_length=1000)
+    gathering_id: uuid.UUID
+    role_id: uuid.UUID
+    assignment_id: uuid.UUID | None = None
+
+
+class AskSendIn(BaseModel):
+    """The leader taps Send on drafts they've read (and maybe edited): that's the approval."""
+
+    person_id: uuid.UUID
+    drafts: list[AskSendDraft] = Field(min_length=1, max_length=30)
+
+
+class AskSendOut(BaseModel):
+    text: str  # "Sent to Caleb."
+    sent: list[uuid.UUID]  # people messaged
+    skipped: list[str] = []  # "Megan hasn't connected to chat yet."
 
 
 class AskAnswer(BaseModel):
@@ -559,3 +587,16 @@ class NoticeOut(BaseModel):
     # longer needs the leader; it stays until dismissed, as good to know.
     settled: bool = False
     update: str | None = None
+    # Someone said yes to serving a place (kind "can_serve"): the leader can put them in.
+    put_in: "PutIn | None" = None
+
+
+class PutIn(BaseModel):
+    """A place someone said yes to, for the leader to record with one tap."""
+
+    ministry_id: uuid.UUID
+    gathering_id: uuid.UUID
+    role_id: uuid.UUID
+    role: str
+    person_id: uuid.UUID
+    name: str

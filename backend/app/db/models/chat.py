@@ -44,13 +44,19 @@ class LeaderNotice(TenantMixin, CreatedAtMixin, Base):
         tenant_fk("ministry_id", "ministries"),
         tenant_fk("about_person_id", "people"),
         tenant_fk("assignment_id", "assignments"),
+        tenant_fk("gathering_id", "gatherings"),
+        tenant_fk("role_id", "roles"),
     )
 
     ministry_id: Mapped[uuid.UUID]
     about_person_id: Mapped[uuid.UUID]
     # The place it's about (a decline or "can't commit"), so Home can tell once it's covered.
     assignment_id: Mapped[uuid.UUID | None]
-    kind: Mapped[str] = mapped_column(sa.String(32))  # declined, cant_commit, stopped, started
+    # The place someone said they can serve (an ask), so Home can offer "Put … in".
+    gathering_id: Mapped[uuid.UUID | None]
+    role_id: Mapped[uuid.UUID | None]
+    # declined, cant_commit, stopped, started, can_serve, cant_serve
+    kind: Mapped[str] = mapped_column(sa.String(32))
     text: Mapped[str] = mapped_column(sa.Text)
     note: Mapped[str | None] = mapped_column(sa.Text)  # the volunteer's own words, if any
 

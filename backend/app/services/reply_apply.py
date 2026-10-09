@@ -1,4 +1,5 @@
-"""Applies a volunteer's own answer: yes, can't make it, away dates, stop, start.
+"""Applies a volunteer's own answer: yes, can't make it, away dates, stop, start, and her
+answer to a leader asking her to serve.
 
 Each is a proposal the volunteer's reply approves (she decides about herself), applied
 here and audited by ApprovalService like any other change. Called only by ApprovalService.
@@ -12,13 +13,14 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Assignment, Blockout, Gathering, Person, Proposal
+from app.db.models import Assignment, Blockout, Gathering, Message, Person, Proposal
 from app.db.repositories.assignments import AssignmentWriter
+from app.db.repositories.messages import MessageWriter
 from app.domain.enums import AssignmentStatus, StatedBy
 from app.services.briefing import church_today
 from app.services.checks_runner import run_checks
 from app.services.errors import ApprovalError
-from app.services.reply_types import AWAY, CONFIRM, START, STOP, TYPES
+from app.services.reply_types import AWAY, CAN_SERVE, CANT_SERVE, CONFIRM, START, STOP, TYPES
 
 __all__ = ["TYPES", "apply", "may_decide"]
 
@@ -50,6 +52,20 @@ def apply(session: Session, proposal: Proposal, volunteer: Person) -> dict[str, 
         session.flush()
         run_checks(session, cid, days[0] - timedelta(days=7), days[-1] + timedelta(days=7))
         return {"dates": [d.isoformat() for d in days]}
+    if proposal.type in (CAN_SERVE, CANT_SERVE):
+        # Her answer only marks the ask answered; the roster changes when a leader puts her in.
+        message = session.scalar(
+            select(Message).where(
+                Message.church_id == cid,
+                Message.id == uuid.UUID(payload["message_id"]),
+                Message.person_id == volunteer.id,
+                Message.kind == "ask",
+            )
+        )
+        if message is None or message.answered_at is not None:
+            raise ApprovalError("That ask was already answered.")
+        MessageWriter(session, cid).answered(message)
+        return {"message_id": str(message.id), "can_serve": proposal.type == CAN_SERVE}
 
     assignment = session.scalar(
         select(Assignment).where(

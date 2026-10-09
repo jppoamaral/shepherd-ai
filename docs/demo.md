@@ -76,8 +76,13 @@ Suggested questions work without the language model; typed questions need the Az
    "Olivia can't make Oct 11, so I left them out." and the closest fit. On desktop, **What
    Shepherd looked at** lists the sources. Shepherd never says why Olivia is away; it doesn't
    know.
-3. Tap **Draft a message to Caleb** (or whoever is suggested): "Draft · not sent" with Edit and
-   Copy. "Shepherd doesn't send this. Copy it and send it yourself, 1:1." Nothing is stored.
+3. Tap **Draft a message to Caleb** (or whoever is suggested): "Draft · not sent" with
+   **Send to Caleb**, Edit and Copy. Nothing goes out until Sarah taps Send; that tap is her
+   approval (a proposal, applied and audited by ApprovalService). Open Caleb's phone (**Show a
+   volunteer's chat**): the ask arrives with **Yes, I can** / **No, sorry**. Tap Yes: Sarah's
+   Home shows "Caleb Baker can serve Sun Oct 11 at 9:30 AM (Kids, Helper)" with **Put Caleb
+   in**. His yes changes nothing; the roster changes only when she taps it. Someone who isn't
+   connected to chat gets no Send button, only Copy.
 4. Type **anyone serving too much lately?** (the model reads the question): Anna, 4 times this
    week, prefers 2 a week.
 5. Type **Why is Olivia taking time off?** "Can't help with that … That's Olivia's to share."
@@ -139,7 +144,9 @@ chat** under the phone is there for a rerun without a reset.
 On Home, the absence check-in and the "people aren't connected yet" notice are **fixed
 sample content**; those come in later milestones. Reminders are real: drafted by the worker,
 sent only on approval.
-Ask Shepherd's drafts are real text from the roster, but Shepherd doesn't send them.
+Ask Shepherd's drafts are real text from the roster, sent only when the leader taps Send.
+"Draft a reminder" sends real reminders (1/2 answers work); Home's reminder card then leaves
+out anyone already reminded.
 
 ## API map for the frontend
 
@@ -153,7 +160,7 @@ Base URL `http://localhost:8000`. CORS allows `http://localhost:4300` (the app) 
 | Conflict huddle | `POST /churches/{cid}/findings/{finding_id}/huddle {person_id}`, `GET /churches/{cid}/huddles/{id}`, `POST …/huddles/{id}/choose {person_id, slot_id}`, `POST …/huddles/{id}/resolve {person_id, outcome}`, `POST …/huddles/{id}/accept-replacement {person_id, ministry_id}` (Resolve), `POST …/huddles/{id}/undo-replacement {person_id}` |
 | Volunteer chat (demo) | `GET /churches/{cid}/volunteers`, `GET /churches/{cid}/people/{pid}/chat` (Shepherd's side), `POST …/people/{pid}/chat {text}` (her message; the same handling Telegram will use) |
 | Reminders and notices | `POST /churches/{cid}/ministries/{mid}/reminders/draft`, approve through the approval queue; `GET /churches/{cid}/leaders/{pid}/notices`, `DELETE /churches/{cid}/notices/{id}?person_id=` |
-| Ask Shepherd | `GET /churches/{cid}/ministries/{mid}/ask?person_id=` (greeting and suggestions), `POST …/ask {person_id, question}` or `{person_id, intent, about_person_id?, on?, role_id?}` |
+| Ask Shepherd | `GET /churches/{cid}/ministries/{mid}/ask?person_id=` (greeting and suggestions), `POST …/ask {person_id, question}` or `{person_id, intent, about_person_id?, on?, role_id?}`, `POST …/ask/send {person_id, drafts}` (Send: the leader's approval) |
 | Memory | `GET /churches/{cid}/ministries/{mid}/memory`, `POST …/memory/notes {person_id, text, kind?, about_person_id?}`, `DELETE …/memory/{id}?person_id=` |
 | Approval queue | `GET /churches/{cid}/proposals?status=pending` (each has `title` and `summary`), `POST …/proposals/{id}/approve` or `/reject` with `{person_id}` |
 | (Also available) | Onboarding chat `POST /onboarding`, schedule intake `POST /churches/{cid}/ministries/{mid}/intake`; both need Azure OpenAI keys |

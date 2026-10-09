@@ -109,8 +109,10 @@ def test_only_known_endpoints_write(client: TestClient) -> None:
         # Resolve and its undo: a proposal the leader approves at once, via ApprovalService.
         ("post", "/churches/{church_id}/huddles/{huddle_id}/accept-replacement"),
         ("post", "/churches/{church_id}/huddles/{huddle_id}/undo-replacement"),
-        # Ask Shepherd answers questions; it only reads (drafts come back to copy).
+        # Ask Shepherd answers questions; it only reads (drafts come back to read).
         ("post", "/churches/{church_id}/ministries/{ministry_id}/ask"),
+        # Send on Ask's drafts: a proposal the leader approves at once, via ApprovalService.
+        ("post", "/churches/{church_id}/ministries/{ministry_id}/ask/send"),
         # A volunteer's chat message: her answers are proposals approved by her reply.
         ("post", "/churches/{church_id}/people/{person_id}/chat"),
         # Drafting reminders only creates a proposal; sending needs a leader's approval.

@@ -4,8 +4,9 @@ Rule 2: the model only says what was asked (an intent, a name as written, a date
 Code finds the facts and writes every answer, so nothing can drift from the record.
 Rule 5: answers cover the leader's own ministry and team; questions about health,
 family or personal reasons are refused before the model sees them. Asking never
-writes to the record, and drafts are returned for the leader to copy: Shepherd
-neither stores nor sends them. Nothing of the conversation is kept.
+writes to the record. Drafts come back for the leader to read, edit and copy, or send:
+tapping Send approves a proposal that ApprovalService sends (`send_drafts`). Nothing of
+the conversation is kept.
 """
 
 import re
@@ -30,26 +31,40 @@ from app.db.models import (
     Ministry,
     Person,
     Preference,
+    Proposal,
     Role,
     RoleSkill,
 )
+from app.db.repositories.proposals import ProposalRepository
 from app.domain.ask import ParsedQuestion
-from app.domain.enums import AskIntent, AssignmentStatus, Experience, FindingType, MembershipStatus
+from app.domain.enums import (
+    AskIntent,
+    AssignmentStatus,
+    Experience,
+    FindingType,
+    MembershipStatus,
+    ProposalStatus,
+)
 from app.domain.schemas import (
     AskAction,
     AskAnswer,
     AskDraft,
     AskIn,
     AskPerson,
+    AskSendIn,
+    AskSendOut,
     AskStart,
     RosterGathering,
 )
 from app.llm.client import LLMClient
 from app.llm.prompts.ask import PARSE
+from app.services import reminders, serve_ask
+from app.services.approval import ApprovalService
 from app.services.briefing import briefing, church_today, roster
 from app.services.huddle_replacement import EXPERIENCE_RANK, free_candidates, unavailable_on
 from app.services.memory import is_leader, pending_memory_proposals, private_reason
 from app.services.profile import format_time
+from app.services.reminders import already_reminded, reminder_text, still_on_roster
 
 LOOKAHEAD_DAYS = 28
 MAX_PEOPLE = 6
@@ -203,6 +218,139 @@ def ask(
             )
         person = matches[0]
     return _answer(ctx, parsed.intent, person.person_id if person else None, on, None)
+
+
+def send_drafts(
+    session: Session,
+    church_id: uuid.UUID,
+    ministry_id: uuid.UUID,
+    body: AskSendIn,
+    today: date | None = None,
+) -> AskSendOut:
+    """The leader tapped Send on drafts they read (and maybe edited). That tap is the
+    approval: one proposal per kind, approved and sent by ApprovalService, as on Home."""
+    ctx = _context(session, church_id, ministry_id, body.person_id, today)
+    upcoming = roster(
+        session, church_id, ministry_id, ctx.today, ctx.today + timedelta(days=LOOKAHEAD_DAYS)
+    )
+    places = {
+        (role.role_id, g.gathering_id): role
+        for g in (upcoming.gatherings if upcoming else [])
+        for role in g.roles
+    }
+    asks: list[dict[str, str]] = []
+    reminder_items: dict[uuid.UUID, list[dict[str, str]]] = defaultdict(list)
+    skipped: list[str] = []
+    names: dict[uuid.UUID, str] = {}
+    for d in body.drafts:
+        person = session.scalar(
+            select(Person).where(Person.church_id == church_id, Person.id == d.to_person_id)
+        )
+        place = places.get((d.role_id, d.gathering_id))
+        if person is None or place is None:
+            raise AskNotFound("that place isn't on this ministry's rosters in the next 4 weeks")
+        first = person.name.split(" ")[0]
+        names[person.id] = first
+        item = {"person_id": str(person.id), "body": d.body.strip()}
+        if d.kind == "ask":
+            if person.id not in ctx.team:
+                raise AskNotFound(f"{person.name} isn't on the {ctx.ministry.name} team")
+            asks.append({**item, "gathering_id": str(d.gathering_id), "role_id": str(d.role_id)})
+            continue
+        assignment_id = d.assignment_id
+        if assignment_id is None or not any(p.assignment_id == assignment_id for p in place.people):
+            raise AskNotFound(f"{person.name} isn't on that roster")
+        if not still_on_roster(
+            session, church_id, {"assignment_id": str(assignment_id), "person_id": str(person.id)}
+        ):
+            skipped.append(f"{first} is no longer on that roster.")
+            continue
+        if already_reminded(session, church_id, assignment_id):
+            skipped.append(f"{first} already has a reminder for this.")
+            continue
+        reminder_items[d.gathering_id].append({**item, "assignment_id": str(assignment_id)})
+
+    repo = ProposalRepository(session, church_id)
+    service = ApprovalService(session)
+    results = []
+    proposals = [
+        repo.create(
+            type=reminders.PROPOSAL_TYPE,
+            payload={
+                "ministry_id": str(ministry_id),
+                "gathering_id": str(gathering_id),
+                "messages": items,
+                "buttons": reminders.BUTTONS,
+            },
+            created_by_agent="ask",
+        )
+        for gathering_id, items in reminder_items.items()
+    ]
+    if asks:
+        proposals.append(
+            repo.create(
+                type=serve_ask.PROPOSAL_TYPE,
+                payload={"ministry_id": str(ministry_id), "messages": asks},
+                created_by_agent="ask",
+            )
+        )
+    for proposal in proposals:
+        service.approve(church_id, proposal.id, ctx.leader.id)
+        results.append(proposal)
+    _close_covered_reminders(ctx, set(map(str, reminder_items)))
+
+    sent: list[uuid.UUID] = []
+    for proposal in results:
+        for item in proposal.payload["messages"]:
+            person = session.get_one(Person, uuid.UUID(item["person_id"]))
+            first = names[person.id]
+            if person.stopped:
+                skipped.append(f"{first} turned messages off.")
+            elif not person.opted_in:
+                skipped.append(f"{first} hasn't connected to chat yet.")
+            else:
+                sent.append(person.id)
+    return AskSendOut(
+        text=_sent_text([names[p] for p in sent], skipped), sent=sent, skipped=skipped
+    )
+
+
+def _close_covered_reminders(ctx: Context, gathering_ids: set[str]) -> None:
+    """Home's pending reminders for a service Ask just covered would send nothing: close
+    them (rejected by the leader, audited) instead of leaving an empty card."""
+    service = ApprovalService(ctx.session)
+    for p in ctx.session.scalars(
+        select(Proposal).where(
+            Proposal.church_id == ctx.church_id,
+            Proposal.type == reminders.PROPOSAL_TYPE,
+            Proposal.status == ProposalStatus.PENDING,
+        )
+    ):
+        if p.payload.get("ministry_id") != str(ctx.ministry.id):
+            continue
+        if p.payload.get("gathering_id") not in gathering_ids:
+            continue
+        if all(
+            not still_on_roster(ctx.session, ctx.church_id, m)
+            or already_reminded(ctx.session, ctx.church_id, uuid.UUID(m["assignment_id"]))
+            for m in p.payload["messages"]
+        ):
+            service.reject(ctx.church_id, p.id, ctx.leader.id)
+
+
+def _sent_text(sent: list[str], skipped: list[str]) -> str:
+    done = f"Sent to {_and(sent)}, 1:1." if sent else "Nothing was sent."
+    return " ".join([done, *skipped])
+
+
+def _why_not(ctx: Context, person_id: uuid.UUID, first: str) -> str | None:
+    """Why Shepherd can't send to this person, so the leader copies the message instead."""
+    person = ctx.session.get_one(Person, person_id)
+    if person.stopped:
+        return f"{first} turned messages off. Copy it and send it yourself."
+    if not person.opted_in:
+        return f"{first} hasn't connected to chat yet. Copy it and send it yourself."
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -493,16 +641,23 @@ def _draft_reminder(ctx: Context, on: date | None) -> AskAnswer:
             for p in role.people:
                 if p.status is AssignmentStatus.DECLINED or p.person_id == ctx.leader.id:
                     continue
+                first = p.name.split(" ")[0]
+                why_not = _why_not(ctx, p.person_id, first)
+                if why_not is None and already_reminded(
+                    ctx.session, ctx.church_id, p.assignment_id
+                ):
+                    why_not = f"{first} already has a reminder for this."
                 drafts.append(
                     AskDraft(
                         to_person_id=p.person_id,
                         to=p.name,
-                        body=(
-                            f"Hi {p.name.split(' ')[0]}, a friendly reminder that you're serving "
-                            f"as {role.role} with {ctx.ministry.name} on {_day(day)} at "
-                            f"{format_time(local.time())}. Reply here if anything changes. "
-                            f"Thank you, {ctx.leader_first}"
-                        ),
+                        body=reminder_text(first, ctx.ministry.name, role.role, local, ctx.today),
+                        kind="reminder",
+                        gathering_id=g.gathering_id,
+                        role_id=role.role_id,
+                        assignment_id=p.assignment_id,
+                        can_send=why_not is None,
+                        why_not=why_not,
                     )
                 )
     source = f"From your {ctx.ministry.name} roster for {_short(day)}"
@@ -533,20 +688,37 @@ def _draft_message(
     gathering = next(
         (g for g in gatherings if any(r.role_id == role_id for r in g.roles)), gatherings[0]
     )
-    role = next((r.role for r in gathering.roles if r.role_id == role_id), None)
+    # The place asked about, else a role they already fill, else the gathering's first.
+    role = (
+        next((r for r in gathering.roles if r.role_id == role_id), None)
+        or next((r for r in gathering.roles if r.role_id in person.role_ids), None)
+        or gathering.roles[0]
+    )
     local = gathering.start_at.astimezone(ctx.tz)
-    as_role = f" as {role}" if role else ""
     body = (
-        f"Hi {person.first}, could you serve{as_role} with {ctx.ministry.name} on {_day(day)} "
-        f"at {format_time(local.time())}? Let me know either way. Thanks, {ctx.leader_first}"
+        f"Hi {person.first}, could you serve as {role.role} with {ctx.ministry.name} on "
+        f"{_day(day)} at {format_time(local.time())}? Let me know either way. "
+        f"Thanks, {ctx.leader_first}"
     )
     notes = []
     if person.person_id in _blocked_on(ctx, [person.person_id], day):
         notes.append(f"{person.first} can't make {_short(day)}.")
+    why_not = _why_not(ctx, person.person_id, person.first)
     return AskAnswer(
         intent=AskIntent.DRAFT_MESSAGE,
         text="Here is a short draft for you to look over.",
-        drafts=[AskDraft(to_person_id=person.person_id, to=person.name, body=body)],
+        drafts=[
+            AskDraft(
+                to_person_id=person.person_id,
+                to=person.name,
+                body=body,
+                kind="ask",
+                gathering_id=gathering.gathering_id,
+                role_id=role.role_id,
+                can_send=why_not is None,
+                why_not=why_not,
+            )
+        ],
         notes=notes,
         source=f"From your {ctx.ministry.name} roster and {person.first}'s availability",
         looked_at=[f"{_short(day)} {ctx.ministry.name} roster", f"{person.first}'s blockout dates"],

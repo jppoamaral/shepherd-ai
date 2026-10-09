@@ -53,12 +53,14 @@ from app.domain.enums import (
     StatedBy,
 )
 from app.domain.replies import ParsedReply, ReplyIntent
+from app.domain.schemas import PutIn
 from app.llm.client import LLMClient
 from app.llm.prompts.replies import PARSE
 from app.services import reply_types
 from app.services.approval import ApprovalService
 from app.services.briefing import church_today
 from app.services.reminders import BUTTONS as REMINDER_BUTTONS
+from app.services.serve_ask import BUTTONS as ASK_BUTTONS
 
 YES = re.compile(
     r"^\s*(1\b|y\b|yes\b|yep\b|yeah\b|sure\b|ok\b|okay\b|count me in|i'?ll be there)", re.I
@@ -272,7 +274,7 @@ def _route(ctx: Inbound, text: str, llm: LLMClient | None) -> list[BotReply]:
                     ctx,
                     "Sorry, I still didn't get that. Tap a button below, or write 'maybe' if "
                     "you're not sure.",
-                    tuple(REMINDER_BUTTONS),
+                    tuple(ASK_BUTTONS if reminder.ask else REMINDER_BUTTONS),
                 ),
             )
         ]
@@ -299,11 +301,18 @@ def _greet(ctx: Inbound) -> list[BotReply]:
     reminder = _open_reminder(ctx)
     if reminder:
         when = f"{reminder.start:%a} {_short(reminder.start.date())}"
-        first = _say(
-            ctx,
-            f"Hi {ctx.first}! Can you make {when}? Reply 1 = yes, 2 = can't make it.",
-            tuple(REMINDER_BUTTONS),
-        )
+        if reminder.ask is not None:
+            first = _say(
+                ctx,
+                f"Hi {ctx.first}! Can you serve {when} as {reminder.role}? Reply 1 = yes, 2 = no.",
+                tuple(ASK_BUTTONS),
+            )
+        else:
+            first = _say(
+                ctx,
+                f"Hi {ctx.first}! Can you make {when}? Reply 1 = yes, 2 = can't make it.",
+                tuple(REMINDER_BUTTONS),
+            )
     else:
         first = _say(
             ctx,
@@ -385,18 +394,23 @@ def _schedule(ctx: Inbound) -> list[BotReply]:
 
 @dataclass
 class Reminder:
-    assignment: Assignment
+    """What a "1" or "2" answers: a reminder about her place, or a leader's ask to serve."""
+
+    assignment: Assignment | None  # a reminder's place; None for an ask
     start: datetime  # church-local
     ministry_id: uuid.UUID
     ministry: str
     role: str
+    sent_at: datetime
+    ask: Message | None = None  # the ask, if this is one (no place on the roster yet)
 
 
 def _open_reminder(ctx: Inbound) -> Reminder | None:
-    """The latest reminder this person hasn't answered, for a gathering still ahead."""
+    """The latest reminder or ask this person hasn't answered, for a gathering still ahead."""
     now = datetime.combine(ctx.today, time(0), tzinfo=ctx.tz)
+    found: list[Reminder] = []
     row = ctx.session.execute(
-        select(Assignment, Gathering.start_at, Ministry.id, Ministry.name, Role.name)
+        select(Assignment, Gathering.start_at, Ministry.id, Ministry.name, Role.name, Message)
         .join(Message, Message.assignment_id == Assignment.id)
         .join(Gathering, Gathering.id == Assignment.gathering_id)
         .join(Ministry, Ministry.id == Assignment.ministry_id)
@@ -413,22 +427,85 @@ def _open_reminder(ctx: Inbound) -> Reminder | None:
         .order_by(Message.created_at.desc())
         .limit(1)
     ).first()
-    if row is None:
-        return None
-    assignment, start, ministry_id, ministry, role = row
-    return Reminder(assignment, start.astimezone(ctx.tz), ministry_id, ministry, role)
+    if row is not None:
+        assignment, start, ministry_id, ministry, role, message = row
+        found.append(
+            Reminder(
+                assignment,
+                start.astimezone(ctx.tz),
+                ministry_id,
+                ministry,
+                role,
+                message.created_at,
+            )
+        )
+    ask_row = ctx.session.execute(
+        select(Message, Gathering.start_at, Ministry.id, Ministry.name, Role.name)
+        .join(Gathering, Gathering.id == Message.gathering_id)
+        .join(Role, Role.id == Message.role_id)
+        .join(Ministry, Ministry.id == Role.ministry_id)
+        .where(
+            Message.church_id == ctx.church.id,
+            Message.person_id == ctx.person.id,
+            Message.kind == "ask",
+            Message.status == MessageStatus.SENT,
+            Message.answered_at.is_(None),
+            Gathering.start_at >= now,
+        )
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    ).first()
+    if ask_row is not None:
+        message, start, ministry_id, ministry, role = ask_row
+        found.append(
+            Reminder(
+                None,
+                start.astimezone(ctx.tz),
+                ministry_id,
+                ministry,
+                role,
+                message.created_at,
+                message,
+            )
+        )
+    return max(found, key=lambda r: r.sent_at, default=None)
 
 
 def _confirm(ctx: Inbound, r: Reminder) -> list[BotReply]:
-    _approve(ctx, reply_types.CONFIRM, {"assignment_id": str(r.assignment.id)})
     _await(ctx, None)
+    if r.ask is not None:
+        _approve(ctx, reply_types.CAN_SERVE, {"message_id": str(r.ask.id)})
+        _tell_leaders(
+            ctx,
+            r.ministry_id,
+            "can_serve",
+            f"{ctx.person.name} can serve {_when(r)} ({r.ministry}, {r.role}).",
+            gathering_id=r.ask.gathering_id,
+            role_id=r.ask.role_id,
+        )
+        return [
+            _say(ctx, f"Thank you, {ctx.first}! I've told your leader. They'll confirm with you.")
+        ]
+    assert r.assignment is not None
+    _approve(ctx, reply_types.CONFIRM, {"assignment_id": str(r.assignment.id)})
     return [_say(ctx, f"Thank you, {ctx.first}! See you {r.start:%A}.")]
 
 
 def _decline(ctx: Inbound, r: Reminder, note: str | None) -> list[BotReply]:
-    _approve(ctx, reply_types.DECLINE, {"assignment_id": str(r.assignment.id)})
     _await(ctx, None)
     when = _short(r.start.date())
+    if r.ask is not None:
+        _approve(ctx, reply_types.CANT_SERVE, {"message_id": str(r.ask.id)})
+        _tell_leaders(
+            ctx,
+            r.ministry_id,
+            "cant_serve",
+            f"{ctx.person.name} can't serve {r.start:%a} {when} ({r.ministry}, {r.role}).",
+            note,
+        )
+        return [_say(ctx, "Thanks for letting me know. I've told your leader.")]
+    assert r.assignment is not None
+    _approve(ctx, reply_types.DECLINE, {"assignment_id": str(r.assignment.id)})
     _tell_leaders(
         ctx,
         r.ministry_id,
@@ -458,15 +535,25 @@ def _maybe(ctx: Inbound, r: Reminder) -> list[BotReply]:
 def _cant_commit(ctx: Inbound, r: Reminder) -> list[BotReply]:
     _await(ctx, None)
     when = _short(r.start.date())
-    _tell_leaders(
-        ctx,
-        r.ministry_id,
-        "cant_commit",
-        f"{ctx.person.name} can't commit to {r.start:%a} {when} yet ({r.ministry}, {r.role}). "
-        "Not confirmed.",
-        assignment_id=r.assignment.id,
-    )
+    text = f"{ctx.person.name} can't commit to {r.start:%a} {when} yet ({r.ministry}, {r.role})."
+    if r.ask is not None:
+        # An ask she can't commit to is answered for now: her leader can ask someone else.
+        _approve(ctx, reply_types.CANT_SERVE, {"message_id": str(r.ask.id)})
+        _tell_leaders(ctx, r.ministry_id, "cant_serve", text)
+    else:
+        assert r.assignment is not None
+        _tell_leaders(
+            ctx,
+            r.ministry_id,
+            "cant_commit",
+            f"{text} Not confirmed.",
+            assignment_id=r.assignment.id,
+        )
     return [_say(ctx, f"Okay, I've let your leader know you can't commit for {when}.")]
+
+
+def _when(r: Reminder) -> str:
+    return f"{r.start:%a} {_short(r.start.date())} at {r.start.hour % 12 or 12}:{r.start.minute:02d} {r.start:%p}"
 
 
 # --- away dates, stop/start, what I know ---------------------------------------
@@ -589,6 +676,8 @@ def _tell_leaders(
     text: str,
     note: str | None = None,
     assignment_id: uuid.UUID | None = None,
+    gathering_id: uuid.UUID | None = None,
+    role_id: uuid.UUID | None = None,
 ) -> None:
     NoticeWriter(ctx.session, ctx.church.id).add(
         ministry_id=ministry_id,
@@ -597,6 +686,8 @@ def _tell_leaders(
         text=text,
         note=note,
         assignment_id=assignment_id,
+        gathering_id=gathering_id,
+        role_id=role_id,
     )
 
 
@@ -683,9 +774,8 @@ def _parse(ctx: Inbound, text: str, llm: LLMClient | None) -> ParsedReply | None
     reminder = _open_reminder(ctx)
     facts = f"Today: {ctx.today:%A} {ctx.today.isoformat()}\n"
     if reminder:
-        facts += (
-            f"They were reminded about {reminder.start:%A} {reminder.start.date().isoformat()}.\n"
-        )
+        about = "asked if they can serve" if reminder.ask else "reminded about"
+        facts += f"They were {about} {reminder.start:%A} {reminder.start.date().isoformat()}.\n"
     return llm.complete(system=PARSE, user=f"{facts}\nMessage: {text}", schema=ParsedReply)
 
 
@@ -708,8 +798,15 @@ def notice_settled(session: Session, notice: LeaderNotice) -> tuple[bool, str | 
     """Whether the place a notice is about has been dealt with since, and how.
 
     A decline is settled once the role is back at its minimum for that gathering; "can't
-    commit" once the volunteer answers the reminder after all.
+    commit" once the volunteer answers the reminder after all; "can serve" once the
+    leader has put them in.
     """
+    if notice.kind == "can_serve":
+        return (
+            (True, f"{notice.text.split(' ')[0]} is on the roster.")
+            if _holds_place(session, notice)
+            else (False, None)
+        )
     if notice.assignment_id is None:
         return False, None
     a = session.get(Assignment, notice.assignment_id)
@@ -752,4 +849,35 @@ def notice_settled(session: Session, notice: LeaderNotice) -> tuple[bool, str | 
         f"Covered: {_and(newcomers)} {'is' if len(newcomers) == 1 else 'are'} in."
         if newcomers
         else "Covered."
+    )
+
+
+def _holds_place(session: Session, notice: LeaderNotice) -> bool:
+    return (
+        notice.gathering_id is not None
+        and session.scalar(
+            select(Assignment.id).where(
+                Assignment.church_id == notice.church_id,
+                Assignment.person_id == notice.about_person_id,
+                Assignment.gathering_id == notice.gathering_id,
+                Assignment.role_id == notice.role_id,
+                Assignment.status != AssignmentStatus.DECLINED,
+            )
+        )
+        is not None
+    )
+
+
+def notice_put_in(session: Session, notice: LeaderNotice, name: str) -> PutIn | None:
+    """For "can serve": the place, so the leader can put them in with one tap."""
+    if notice.kind != "can_serve" or notice.gathering_id is None or notice.role_id is None:
+        return None
+    role = session.get_one(Role, notice.role_id)
+    return PutIn(
+        ministry_id=notice.ministry_id,
+        gathering_id=notice.gathering_id,
+        role_id=notice.role_id,
+        role=role.name,
+        person_id=notice.about_person_id,
+        name=name,
     )

@@ -60,6 +60,8 @@
   background: var(--paper); padding: var(--space-2) var(--space-3); resize: vertical;
 }
 .sh-note { align-items: flex-start; }
+.why-not { font-size: 14px; line-height: 20px; }
+.sh-btn.idle { opacity: .6; cursor: progress; }
 
 /* Composer: stays in reach above the phone's tab bar */
 .composer {

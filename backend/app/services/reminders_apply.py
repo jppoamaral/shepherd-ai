@@ -14,7 +14,7 @@ from app.channels.base import OutgoingMessage
 from app.channels.factory import channel_for, channel_name
 from app.db.models import Assignment, Church, MinistryLeader, Person, Proposal
 from app.db.repositories.messages import MessageWriter
-from app.services.reminders import PROPOSAL_TYPE, still_on_roster
+from app.services.reminders import PROPOSAL_TYPE, already_reminded, still_on_roster
 
 __all__ = ["PROPOSAL_TYPE", "apply", "may_decide"]
 
@@ -40,7 +40,7 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
     channel = channel_for(session, church)
     writer = MessageWriter(session, cid)
     buttons = tuple(proposal.payload.get("buttons", []))
-    sent, failed, stopped, not_connected, changed = 0, 0, 0, 0, 0
+    sent, failed, stopped, not_connected, changed, already = 0, 0, 0, 0, 0, 0
     for item in proposal.payload["messages"]:
         person = session.scalar(
             select(Person).where(Person.church_id == cid, Person.id == uuid.UUID(item["person_id"]))
@@ -52,6 +52,9 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
         )
         if person is None or assignment is None or not still_on_roster(session, cid, item):
             changed += 1  # the roster moved on since the draft; nothing to remind
+            continue
+        if already_reminded(session, cid, assignment.id):
+            already += 1  # sent meanwhile from Ask Shepherd; never remind twice
             continue
         if person.stopped:
             stopped += 1
@@ -86,4 +89,5 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
         "stopped": stopped,
         "not_connected": not_connected,
         "changed": changed,
+        "already": already,
     }

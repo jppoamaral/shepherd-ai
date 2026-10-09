@@ -5,4 +5,6 @@ DECLINE = "reply_decline"
 AWAY = "reply_away"
 STOP = "reply_stop"
 START = "reply_start"
-TYPES = (CONFIRM, DECLINE, AWAY, STOP, START)
+CAN_SERVE = "reply_can_serve"  # her answer to a leader's ask; the leader still decides
+CANT_SERVE = "reply_cant_serve"
+TYPES = (CONFIRM, DECLINE, AWAY, STOP, START, CAN_SERVE, CANT_SERVE)

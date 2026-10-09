@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import type {
   AskAnswer,
+  AskDraft,
+  AskSendOut,
   ChatMessage,
   ChatThread,
   Notice,
@@ -140,9 +142,19 @@ export class ApiService {
     });
   }
 
-  /** One question (typed, or a tapped suggestion). Read-only: drafts come back to copy. */
+  /** One question (typed, or a tapped suggestion). Read-only: drafts come back to read. */
   ask(churchId: string, ministryId: string, body: AskIn): Observable<AskAnswer> {
     return this.http.post<AskAnswer>(`${this.base}/churches/${churchId}/ministries/${ministryId}/ask`, body);
+  }
+
+  /** Send drafts the leader read (and maybe edited): the tap is their approval. 1:1 only. */
+  sendDrafts(churchId: string, ministryId: string, personId: string, drafts: AskDraft[]): Observable<AskSendOut> {
+    return this.http.post<AskSendOut>(`${this.base}/churches/${churchId}/ministries/${ministryId}/ask/send`, {
+      person_id: personId,
+      drafts: drafts.map(({ to_person_id, kind, body, gathering_id, role_id, assignment_id }) => ({
+        to_person_id, kind, body, gathering_id, role_id, assignment_id,
+      })),
+    });
   }
 
   /** Resolve: accept Shepherd's replacement on the leader's own roster. Messages no one. */

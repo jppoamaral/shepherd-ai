@@ -26,6 +26,8 @@ class MessageWriter:
         body: str,
         kind: str = "message",
         assignment_id: uuid.UUID | None = None,
+        gathering_id: uuid.UUID | None = None,
+        role_id: uuid.UUID | None = None,
         buttons: list[str] | None = None,
     ) -> Message:
         message = Message(
@@ -36,6 +38,8 @@ class MessageWriter:
             status=MessageStatus.APPROVED,
             kind=kind,
             assignment_id=assignment_id,
+            gathering_id=gathering_id,
+            role_id=role_id,
             buttons=buttons or [],
         )
         self.session.add(message)
@@ -46,4 +50,9 @@ class MessageWriter:
         message.status = MessageStatus.SENT if ok else MessageStatus.FAILED
         message.sent_at = datetime.now(UTC) if ok else None
         message.error = error
+        self.session.flush()
+
+    def answered(self, message: Message) -> None:
+        """The person answered this ask; a later "1" or "2" no longer counts for it."""
+        message.answered_at = datetime.now(UTC)
         self.session.flush()

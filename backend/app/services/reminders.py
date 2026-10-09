@@ -24,7 +24,7 @@ from app.db.models import (
     Role,
 )
 from app.db.repositories.proposals import ProposalRepository
-from app.domain.enums import AssignmentStatus, ProposalStatus
+from app.domain.enums import AssignmentStatus, MessageStatus, ProposalStatus
 
 PROPOSAL_TYPE = "reminders"
 BUTTONS = ["Yes, I'll be there", "I can't make it"]
@@ -55,6 +55,21 @@ def still_on_roster(session: Session, church_id: uuid.UUID, item: dict[str, str]
         assignment is not None
         and str(assignment.person_id) == item["person_id"]
         and assignment.status is not AssignmentStatus.DECLINED
+    )
+
+
+def already_reminded(session: Session, church_id: uuid.UUID, assignment_id: uuid.UUID) -> bool:
+    """Whether a reminder for this place already went out (from Home or Ask Shepherd)."""
+    return (
+        session.scalar(
+            select(Message.id).where(
+                Message.church_id == church_id,
+                Message.assignment_id == assignment_id,
+                Message.kind == "reminder",
+                Message.status == MessageStatus.SENT,
+            )
+        )
+        is not None
     )
 
 

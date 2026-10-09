@@ -36,7 +36,7 @@ from app.domain.schemas import (
 )
 from app.services.briefing import church_today
 from app.services.errors import NotAllowed
-from app.services.inbound import UnknownPerson, handle_inbound, notice_settled
+from app.services.inbound import UnknownPerson, handle_inbound, notice_put_in, notice_settled
 from app.services.proposal_text import describe
 from app.services.reminders import draft_reminders
 
@@ -163,6 +163,7 @@ def notices(reader: ReaderDep, person_id: uuid.UUID) -> list[NoticeOut]:
                 at=n.created_at,
                 settled=settled,
                 update=update,
+                put_in=None if settled else notice_put_in(reader.session, n, name),
             )
         )
     return out

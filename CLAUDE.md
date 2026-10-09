@@ -3,7 +3,7 @@
 Church volunteer coordination app. Shepherd helps ministry leaders lead the people who serve: one record of who serves where across all ministries, roster suggestions (training and veteran paths), early warnings to the right leader, leader memory (with consent), and a conflict huddle between two leaders.
 
 **Core rule: Shepherd suggests, a person decides.** Nothing is recorded or sent until a leader approves.
-Clarified for volunteer chat: anything Shepherd *starts* (reminders, nudges) needs a leader's approval. The bot's direct replies to a volunteer's own message (thanks, one clarifying question, reading dates back) go out at once in fixed wording and never start a new ask. A volunteer's answer about herself (yes, can't make it, away dates, stop/start) is a proposal her own reply approves, applied by ApprovalService.
+Clarified for volunteer chat: anything Shepherd *starts* (reminders, nudges, a leader's ask to serve) needs a leader's approval; tapping Send on an Ask Shepherd draft is that approval (a proposal approved at once through ApprovalService). A volunteer's yes to an ask only tells her leader; the roster changes when the leader puts her in. The bot's direct replies to a volunteer's own message (thanks, one clarifying question, reading dates back) go out at once in fixed wording and never start a new ask. A volunteer's answer about herself (yes, can't make it, away dates, stop/start) is a proposal her own reply approves, applied by ApprovalService.
 
 **Source of truth: `docs/PROJECT_BRIEF.md`.** Read it before starting any milestone. If a request conflicts with it, ask. Architecture decisions live in `docs/adr/`.
 

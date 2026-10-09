@@ -8,10 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import Church, Gathering, GatheringType, Ministry, Person, Role
+from app.domain.enums import ProposalStatus
 from app.domain.profile import ChurchProfileDraft
 from app.domain.schemas import ProposalOut
 from app.services.profile import format_time, render_summary
-from app.services.reminders import still_on_roster
+from app.services.reminders import already_reminded, still_on_roster
 
 
 def describe(
@@ -57,8 +58,17 @@ def _text(p: ProposalOut, names: "_Names") -> dict[str, Any]:
     if p.type == "reminders":
         current: list[dict[str, str]] = []
         left: list[dict[str, str]] = []
+        already: list[dict[str, str]] = []
+        pending = p.status is ProposalStatus.PENDING
         for m in payload.get("messages", []):
-            (current if still_on_roster(names.session, names.church_id, m) else left).append(m)
+            if not still_on_roster(names.session, names.church_id, m):
+                left.append(m)
+            elif pending and already_reminded(
+                names.session, names.church_id, uuid.UUID(m["assignment_id"])
+            ):
+                already.append(m)
+            else:
+                current.append(m)
         n = len(current)
         blocks = [f"To {names.person(m['person_id'])}: {m['body']}" for m in current]
         if left:
@@ -66,6 +76,9 @@ def _text(p: ProposalOut, names: "_Names") -> dict[str, Any]:
             blocks.append(
                 f"Not sending to {who}: no longer on this roster since the reminders were drafted."
             )
+        if already:
+            who = ", ".join(names.person(m["person_id"]) for m in already)
+            blocks.append(f"Not sending to {who}: already reminded from Ask Shepherd.")
         return {
             "title": f"{n} reminder{'s' if n != 1 else ''} ready for "
             f"{names.gathering(payload['gathering_id'])}",

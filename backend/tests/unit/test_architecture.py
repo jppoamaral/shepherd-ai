@@ -33,6 +33,7 @@ WRITE_REPOSITORIES = (
     "app.services.huddle_apply",
     "app.services.reminders_apply",
     "app.services.reply_apply",
+    "app.services.serve_ask_apply",
 )
 # ApprovalService, and the handlers it calls, which write through the repositories.
 WRITE_REPOSITORY_IMPORTERS = {
@@ -41,6 +42,7 @@ WRITE_REPOSITORY_IMPORTERS = {
     "app.services.huddle_apply",
     "app.services.reminders_apply",
     "app.services.reply_apply",
+    "app.services.serve_ask_apply",
 }
 
 

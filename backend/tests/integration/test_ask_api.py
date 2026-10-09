@@ -130,8 +130,11 @@ def test_reminders_are_drafted_for_everyone_but_the_leader(client: TestClient, g
         "Megan Lee",
     }
     rachel = next(d for d in out["drafts"] if d["to"] == "Rachel Turner")
-    assert rachel["body"].startswith("Hi Rachel, a friendly reminder that you're serving as Helper")
-    assert rachel["body"].endswith("Thank you, Sarah")
+    assert rachel["body"] == (
+        "Hi Rachel! You're scheduled in Kids this Sunday, Oct 11, at 9:30, as Helper. "
+        "Can you make it?"
+    )
+    assert rachel["kind"] == "reminder" and rachel["assignment_id"]
 
 
 def test_draft_message_asks_one_person_one_to_one(client: TestClient, grace: dict) -> None:
@@ -144,7 +147,10 @@ def test_draft_message_asks_one_person_one_to_one(client: TestClient, grace: dic
     ).json()
     (draft,) = out["drafts"]
     assert draft["to"] == "Anna Peterson"
-    assert draft["body"].startswith("Hi Anna, could you serve with Kids on Sun Oct 11 at 9:30 AM?")
+    assert draft["body"].startswith(
+        "Hi Anna, could you serve as Check-in with Kids on Sun Oct 11 at 9:30 AM?"
+    )
+    assert draft["kind"] == "ask" and draft["role_id"] and draft["gathering_id"]
 
 
 def test_remember_shows_confirmed_memories_and_pending_ones(

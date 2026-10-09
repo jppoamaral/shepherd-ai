@@ -592,9 +592,29 @@ export interface paths {
         put?: never;
         /**
          * Answer
-         * @description Answer one question. Read-only: drafts come back to copy; nothing is stored or sent.
+         * @description Answer one question. Read-only: drafts come back to read; nothing is stored or sent.
          */
         post: operations["answer_churches__church_id__ministries__ministry_id__ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/churches/{church_id}/ministries/{ministry_id}/ask/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send
+         * @description The leader taps Send on drafts: their approval. Sent 1:1 through ApprovalService.
+         */
+        post: operations["send_churches__church_id__ministries__ministry_id__ask_send_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -781,7 +801,7 @@ export interface components {
         };
         /**
          * AskDraft
-         * @description A 1:1 message for the leader to copy. Never stored or sent by Shepherd.
+         * @description A 1:1 message for the leader to send (Send is their approval) or copy.
          */
         AskDraft: {
             /**
@@ -793,6 +813,30 @@ export interface components {
             to: string;
             /** Body */
             body: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ask" | "reminder";
+            /**
+             * Gathering Id
+             * Format: uuid
+             */
+            gathering_id: string;
+            /**
+             * Role Id
+             * Format: uuid
+             */
+            role_id: string;
+            /** Assignment Id */
+            assignment_id?: string | null;
+            /**
+             * Can Send
+             * @default true
+             */
+            can_send: boolean;
+            /** Why Not */
+            why_not?: string | null;
         };
         /**
          * AskIn
@@ -832,6 +876,58 @@ export interface components {
             experience: components["schemas"]["Experience"] | null;
             /** Detail */
             detail: string;
+        };
+        /** AskSendDraft */
+        AskSendDraft: {
+            /**
+             * To Person Id
+             * Format: uuid
+             */
+            to_person_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ask" | "reminder";
+            /** Body */
+            body: string;
+            /**
+             * Gathering Id
+             * Format: uuid
+             */
+            gathering_id: string;
+            /**
+             * Role Id
+             * Format: uuid
+             */
+            role_id: string;
+            /** Assignment Id */
+            assignment_id?: string | null;
+        };
+        /**
+         * AskSendIn
+         * @description The leader taps Send on drafts they've read (and maybe edited): that's the approval.
+         */
+        AskSendIn: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Drafts */
+            drafts: components["schemas"]["AskSendDraft"][];
+        };
+        /** AskSendOut */
+        AskSendOut: {
+            /** Text */
+            text: string;
+            /** Sent */
+            sent: string[];
+            /**
+             * Skipped
+             * @default []
+             */
+            skipped: string[];
         };
         /** AskStart */
         AskStart: {
@@ -1539,6 +1635,7 @@ export interface components {
             settled: boolean;
             /** Update */
             update?: string | null;
+            put_in?: components["schemas"]["PutIn"] | null;
         };
         /** OnboardingOut */
         OnboardingOut: {
@@ -1666,6 +1763,36 @@ export interface components {
          * @enum {string}
          */
         ProposalStatus: "pending" | "approved" | "rejected";
+        /**
+         * PutIn
+         * @description A place someone said yes to, for the leader to record with one tap.
+         */
+        PutIn: {
+            /**
+             * Ministry Id
+             * Format: uuid
+             */
+            ministry_id: string;
+            /**
+             * Gathering Id
+             * Format: uuid
+             */
+            gathering_id: string;
+            /**
+             * Role Id
+             * Format: uuid
+             */
+            role_id: string;
+            /** Role */
+            role: string;
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Name */
+            name: string;
+        };
         /**
          * QuestionKind
          * @enum {string}
@@ -3028,6 +3155,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AskAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_churches__church_id__ministries__ministry_id__ask_send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ministry_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskSendIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskSendOut"];
                 };
             };
             /** @description Validation Error */

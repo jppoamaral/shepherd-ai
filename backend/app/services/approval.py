@@ -25,6 +25,7 @@ from app.services import (
     reminders_apply,
     reply_apply,
     roster_apply,
+    serve_ask_apply,
 )
 from app.services.errors import ApprovalError, NotAllowed, NotFound
 
@@ -61,6 +62,9 @@ HANDLERS: Mapping[str, ProposalHandler] = {
     ),
     reminders_apply.PROPOSAL_TYPE: ProposalHandler(
         may_decide=reminders_apply.may_decide, apply=reminders_apply.apply
+    ),
+    serve_ask_apply.PROPOSAL_TYPE: ProposalHandler(
+        may_decide=serve_ask_apply.may_decide, apply=serve_ask_apply.apply
     ),
     **{
         kind: ProposalHandler(may_decide=reply_apply.may_decide, apply=reply_apply.apply)

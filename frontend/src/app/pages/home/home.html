@@ -44,6 +44,11 @@
           <p class="sh-note"><sh-icon name="lock" />{{ first(n.about) }} asked Shepherd to pass this on. It isn't kept: dismissing deletes it.</p>
         }
         <div class="sh-actions">
+          @if (n.put_in; as p) {
+            <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === n.id" (click)="putIn(n, p)">
+              Put {{ first(p.name) }} in
+            </button>
+          }
           <button type="button" class="sh-btn sh-btn--secondary" (click)="dismiss(n)">Dismiss</button>
         </div>
       </article>

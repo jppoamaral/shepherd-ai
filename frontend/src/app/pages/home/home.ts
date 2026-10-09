@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
-import type { Briefing, BriefingItem, GapFill, Leader, Notice, Proposal } from '../../api/types';
+import type { Briefing, BriefingItem, GapFill, Leader, Notice, Proposal, PutIn } from '../../api/types';
 import { Session } from '../../core/session';
 import { churchToday, longDate, monthDay } from '../../core/format';
 import { Icon } from '../../ui/icon';
@@ -147,6 +147,28 @@ export class HomePage {
       });
   }
 
+  /** Someone said yes when asked: record them in that place, through the approval queue. */
+  protected putIn(n: Notice, p: PutIn): void {
+    this.busy.set(n.id);
+    this.queueMessage.set('');
+    this.api
+      .approveSuggestion(this.session.churchId(), p.ministry_id, this.session.personId(), [
+        { gathering_id: p.gathering_id, role_id: p.role_id, person_id: p.person_id, reason: 'Said yes when asked.' },
+      ])
+      .subscribe({
+        next: () => {
+          this.busy.set(null);
+          this.queueMessage.set(`${p.name} is on the roster as ${p.role}.`);
+          this.load(this.session.churchId(), this.session.personId());
+          this.checkNotices();
+        },
+        error: (e) => {
+          this.busy.set(null);
+          this.queueMessage.set(e?.error?.detail ?? "That didn't work. Please try again.");
+        },
+      });
+  }
+
   /** Dismissing deletes the notice, including anything personal the volunteer passed on. */
   protected dismiss(n: Notice): void {
     this.api.dismissNotice(this.session.churchId(), n.id, this.session.personId()).subscribe(() =>
@@ -154,9 +176,9 @@ export class HomePage {
     );
   }
 
-  /** A decline or "can't commit" needs the leader until the place is dealt with. */
+  /** A decline, "can't commit" or "can serve" needs the leader until the place is dealt with. */
   protected needsYouNotice(n: Notice): boolean {
-    return (n.kind === 'declined' || n.kind === 'cant_commit') && !n.settled;
+    return (n.kind === 'declined' || n.kind === 'cant_commit' || n.kind === 'can_serve') && !n.settled;
   }
 
   /** How many reminders will actually go out (the server leaves out places that changed). */
@@ -170,7 +192,8 @@ export class HomePage {
   }
 
   protected notSending(p: Proposal): string | undefined {
-    return (p.summary ?? '').split('\n\n').find((b) => b.startsWith('Not sending'));
+    const notes = (p.summary ?? '').split('\n\n').filter((b) => b.startsWith('Not sending'));
+    return notes.length ? notes.join(' ') : undefined;
   }
 
   protected first(name: string): string {

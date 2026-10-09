@@ -556,3 +556,171 @@ def test_an_evening_blockout_counts_on_the_church_local_day(session: Session, gr
         session, church_id, sound.ministry_id, sound.id, uuid.UUID(int=0), start, end
     )
     assert before[0].person_id not in {c.person_id for c in after}
+
+
+# --- Ask Shepherd's drafts, sent when the leader taps Send ---------------------------
+
+
+def ask_draft(client: TestClient, grace: dict, **body) -> list[dict]:  # type: ignore[no-untyped-def]
+    out = client.post(
+        f"/churches/{grace['id']}/ministries/{grace['kids']}/ask",
+        json={"person_id": grace["leaders"]["Sarah Collins"], "on": "2026-10-11", **body},
+    )
+    assert out.status_code == 200, out.text
+    return out.json()["drafts"]  # type: ignore[no-any-return]
+
+
+def send(client: TestClient, grace: dict, drafts: list[dict], leader: str = "Sarah Collins"):  # type: ignore[no-untyped-def]
+    keys = ("to_person_id", "kind", "body", "gathering_id", "role_id", "assignment_id")
+    return client.post(
+        f"/churches/{grace['id']}/ministries/{grace['kids']}/ask/send",
+        json={
+            "person_id": grace["leaders"][leader],
+            "drafts": [{k: d[k] for k in keys} for d in drafts],
+        },
+    )
+
+
+def notices(client: TestClient, grace: dict) -> list[dict]:
+    sarah = grace["leaders"]["Sarah Collins"]
+    return client.get(f"/churches/{grace['id']}/leaders/{sarah}/notices").json()  # type: ignore[no-any-return]
+
+
+def connect(session: Session, grace: dict, who: str, connected: bool = True) -> None:
+    person = session.get_one(Person, uuid.UUID(grace["people"][who]))
+    person.opted_in, person.stopped = connected, False
+    session.flush()
+
+
+def test_send_on_an_ask_sends_it_and_a_yes_lets_the_leader_put_them_in(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    connect(session, grace, "Anna Peterson")
+    (draft,) = ask_draft(
+        client, grace, intent="draft_message", about_person_id=grace["people"]["Anna Peterson"]
+    )
+    assert draft["can_send"] and draft["why_not"] is None
+    draft["body"] = "Hi Anna, could you do check-in this Sunday at 9:30? Sarah"  # edited
+    out = send(client, grace, [draft])
+    assert out.status_code == 200, out.text
+    assert out.json()["text"] == "Sent to Anna, 1:1."
+
+    proposal = session.scalars(select(Proposal).where(Proposal.type == "serve_ask")).one()
+    assert proposal.status is ProposalStatus.APPROVED and proposal.created_by_agent == "ask"
+    assert session.scalars(select(AuditLog).where(AuditLog.target_id == str(proposal.id))).one()
+    last = chat(client, grace, "Anna Peterson")["messages"][-1]
+    assert last["body"] == draft["body"]
+    assert last["buttons"] == ["Yes, I can", "No, sorry"]
+
+    assert say(client, grace, "Anna Peterson", "Yes, I can") == [
+        "Thank you, Anna! I've told your leader. They'll confirm with you."
+    ]
+    (notice,) = [n for n in notices(client, grace) if n["kind"] == "can_serve"]
+    assert notice["text"] == "Anna Peterson can serve Sun Oct 11 at 9:30 AM (Kids, Check-in)."
+    put_in = notice["put_in"]
+    assert put_in["person_id"] == grace["people"]["Anna Peterson"]
+    # Her yes changed nothing on the roster: the leader decides.
+    placed = select(func.count()).where(
+        Assignment.person_id == uuid.UUID(grace["people"]["Anna Peterson"]),
+        Assignment.gathering_id == uuid.UUID(put_in["gathering_id"]),
+    )
+    assert session.scalar(placed) == 0
+
+    # The ask is answered: a second "1" isn't passed on again.
+    say(client, grace, "Anna Peterson", "1")
+    assert len([n for n in notices(client, grace) if n["kind"] == "can_serve"]) == 1
+
+    approved = client.post(
+        f"/churches/{grace['id']}/ministries/{grace['kids']}/suggestion/approve",
+        json={
+            "person_id": grace["leaders"]["Sarah Collins"],
+            "assignments": [
+                {k: put_in[k] for k in ("gathering_id", "role_id", "person_id")}
+                | {"reason": "Said yes when asked."}
+            ],
+        },
+    )
+    assert approved.status_code == 200, approved.text
+    (notice,) = [n for n in notices(client, grace) if n["kind"] == "can_serve"]
+    assert notice["settled"] and notice["update"] == "Anna is on the roster."
+    assert notice["put_in"] is None
+
+
+def test_a_no_to_an_ask_tells_the_leader_with_her_reason_once(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    connect(session, grace, "Anna Peterson")
+    drafts = ask_draft(
+        client, grace, intent="draft_message", about_person_id=grace["people"]["Anna Peterson"]
+    )
+    assert send(client, grace, drafts).status_code == 200
+    assert say(client, grace, "Anna Peterson", "2 - working that morning") == [
+        "Thanks for letting me know. I've told your leader."
+    ]
+    (notice,) = [n for n in notices(client, grace) if n["kind"] == "cant_serve"]
+    assert notice["text"] == "Anna Peterson can't serve Sun Oct 11 (Kids, Check-in)."
+    assert notice["note"] == "2 - working that morning"  # passed on as she said it
+    assert notice["put_in"] is None
+
+
+def test_send_skips_people_who_arent_connected_and_needs_a_leader_of_the_ministry(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    connect(session, grace, "Anna Peterson", connected=False)
+    (draft,) = ask_draft(
+        client, grace, intent="draft_message", about_person_id=grace["people"]["Anna Peterson"]
+    )
+    assert not draft["can_send"]
+    assert draft["why_not"] == "Anna hasn't connected to chat yet. Copy it and send it yourself."
+    out = send(client, grace, [draft]).json()
+    assert out["text"] == "Nothing was sent. Anna hasn't connected to chat yet."
+    assert send(client, grace, [draft], leader="David Morales").status_code == 403
+    assert session.scalar(select(func.count()).where(Message.kind == "ask")) == 0
+
+
+def test_reminders_sent_from_ask_are_real_reminders_and_never_sent_twice(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    # Home's reminders are drafted (pending) before Sarah sends Emily's from Ask.
+    client.post(f"/churches/{grace['id']}/ministries/{grace['kids']}/reminders/draft")
+    emily = next(
+        d for d in ask_draft(client, grace, intent="draft_reminder") if d["to"] == "Emily Brooks"
+    )
+    assert emily["kind"] == "reminder" and emily["can_send"]
+    out = send(client, grace, [emily])
+    assert out.json()["text"] == "Sent to Emily, 1:1."
+    assert say(client, grace, "Emily Brooks", "1") == ["Thank you, Emily! See you Sunday."]
+    place = session.get_one(Assignment, uuid.UUID(emily["assignment_id"]))
+    assert place.status is AssignmentStatus.CONFIRMED
+
+    # Home's card leaves her out, and approving it doesn't remind her again.
+    pending = client.get(f"/churches/{grace['id']}/proposals", params={"status": "pending"}).json()
+    (home,) = [p for p in pending if p["type"] == "reminders"]
+    assert "Not sending to Emily Brooks: already reminded from Ask Shepherd." in home["summary"]
+    send_kids_reminders(client, grace)
+    reminders_to_emily = select(func.count()).where(
+        Message.kind == "reminder", Message.person_id == uuid.UUID(grace["people"]["Emily Brooks"])
+    )
+    assert session.scalar(reminders_to_emily) == 1
+    redraft = ask_draft(client, grace, intent="draft_reminder")
+    again = next(d for d in redraft if d["to"] == "Emily Brooks")
+    assert not again["can_send"] and again["why_not"] == "Emily already has a reminder for this."
+
+
+def test_sending_everyone_from_ask_closes_homes_reminder_card(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    client.post(f"/churches/{grace['id']}/ministries/{grace['kids']}/reminders/draft")
+    (home,) = session.scalars(
+        select(Proposal).where(
+            Proposal.type == "reminders", Proposal.status == ProposalStatus.PENDING
+        )
+    ).all()
+    drafts = [d for d in ask_draft(client, grace, intent="draft_reminder") if d["can_send"]]
+    for item in home.payload["messages"]:  # everyone on Home's card is connected
+        assert any(d["assignment_id"] == item["assignment_id"] for d in drafts)
+    assert send(client, grace, drafts).status_code == 200
+    session.refresh(home)
+    assert home.status is ProposalStatus.REJECTED  # it would have sent nothing
+    pending = client.get(f"/churches/{grace['id']}/proposals", params={"status": "pending"})
+    assert [p for p in pending.json() if p["type"] == "reminders"] == []
