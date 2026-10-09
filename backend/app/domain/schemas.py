@@ -7,7 +7,9 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import (
+    AssignmentStatus,
     Experience,
+    FindingType,
     GatheringKind,
     IntakeStatus,
     MembershipStatus,
@@ -181,3 +183,84 @@ class IntakeOut(BaseModel):
     questions: list[IntakeQuestion]
     summary: str
     proposal_id: uuid.UUID | None
+
+
+class LeaderMinistry(BaseModel):
+    ministry_id: uuid.UUID
+    ministry: str
+    can_schedule: bool
+    can_approve: bool
+
+
+class LeaderSummary(BaseModel):
+    """For the demo's "who am I" picker (no auth yet)."""
+
+    person_id: uuid.UUID
+    name: str
+    ministries: list[LeaderMinistry]
+
+
+class BriefingItem(BaseModel):
+    finding_id: uuid.UUID
+    type: FindingType
+    severity: str  # "warning" | "noted"
+    text: str
+    on: date
+    ministries: list[str]
+    people: list[str]
+    # A double booking shared with another ministry's leader: offer "Find a time to talk".
+    can_huddle: bool
+
+
+class BriefingGathering(BaseModel):
+    gathering_id: uuid.UUID
+    ministry_id: uuid.UUID
+    ministry: str
+    name: str
+    start_at: datetime
+    needed: int
+    filled: int
+
+
+class BriefingOut(BaseModel):
+    person_id: uuid.UUID
+    name: str
+    start: date
+    end: date  # exclusive
+    headline: str
+    items: list[BriefingItem]
+    gatherings: list[BriefingGathering]
+
+
+class RosterPerson(BaseModel):
+    assignment_id: uuid.UUID
+    person_id: uuid.UUID
+    name: str
+    status: AssignmentStatus
+    experience: Experience | None
+    flags: list[str]  # "double_booked", "over_load", "above_preference"
+
+
+class RosterRole(BaseModel):
+    role_id: uuid.UUID
+    role: str
+    minimum: int
+    people: list[RosterPerson]
+    missing: int
+
+
+class RosterGathering(BaseModel):
+    gathering_id: uuid.UUID
+    name: str
+    kind: GatheringKind
+    start_at: datetime
+    end_at: datetime
+    roles: list[RosterRole]
+
+
+class RosterOut(BaseModel):
+    ministry_id: uuid.UUID
+    ministry: str
+    start: date
+    end: date
+    gatherings: list[RosterGathering]
