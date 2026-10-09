@@ -80,7 +80,19 @@ Set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` (
 
 ## Planned work (beyond the brief's milestones)
 
-- **Onboarding UX pass** (after M3; raised by the user after the M2 demo; the specific confusion from their screenshot is still to be captured). Known weak spots:
+- **Onboarding UX pass** (after M3; raised by the user after the M2 demo).
+  Root causes from the user's real session (the roles topic, a Youth/Kids/Media/Worship church):
+  1. **Clarifications throw information away.** When the model asks a clarifying question, nothing from that answer is applied, and the next turn only sees the last question. So "3 volunteers, 1 leader, 2 worship volunteers" was lost, and the agent asked the same thing four times. Fix:
+     - Apply what is clear even while asking about the rest.
+     - Keep the current topic's recent exchange as context within the session; it's discarded when the topic is confirmed, so no transcript is stored long term.
+  2. **The admin's model doesn't fit ours.** Kids is organized by age groups (2 helpers each for ages 2–4, 5–7, 7–9 and 10–12, plus 2 overseers). The agent forced it into "gathering name", asked a confusing question, and saved nothing. Fix: treat age groups or classes as roles (e.g. "Helper, ages 2–4"), and propose that mapping back to the admin in plain words.
+  3. **All ministries at once.** "That's all" was refused because Kids, Media and Worship had no roles yet, and the reply was an error dump. Fix:
+     - Ask roles one ministry at a time.
+     - Say which ministry is next.
+     - Never answer "that's all" with a list of errors.
+  4. **Questions in system terms** ("minimum number required for each role at the Youth Group gathering"). Fix: ask the way a leader thinks ("How many people do you need for Youth Group, and doing what?").
+
+  Other known weak spots:
   - **Reads like a form:** 10 fixed topics in order, with long paragraph questions.
   - **The "that's all" loop:** a section isn't confirmed unless the admin says it's done, so the agent repeats itself.
   - **Walls of text:** the post-sample reply and the review summary are long bullet dumps.
