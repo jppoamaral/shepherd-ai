@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ApiService } from '../api/api.service';
 import { Session } from '../core/session';
 import { initials } from '../core/format';
 import { Icon, IconName } from '../ui/icon';
@@ -106,6 +107,7 @@ const NAV: NavItem[] = [
 export class Shell {
   protected readonly session = inject(Session);
   private readonly router = inject(Router);
+  private readonly api = inject(ApiService);
   protected readonly nav = NAV;
   protected readonly initials = computed(() => initials(this.session.leader()?.name ?? ''));
   protected readonly roleLine = computed(() => {
@@ -114,6 +116,22 @@ export class Shell {
     const duty = m.can_schedule && m.can_approve ? 'coordinator' : m.can_schedule ? 'scheduler' : 'approver';
     return `${m.ministry} ${duty}`;
   });
+
+  constructor() {
+    // The demo data can be reset (new ids). If the remembered leader no longer exists,
+    // go back to "who's leading today?" instead of showing errors; else refresh their ministries.
+    const churchId = this.session.churchId();
+    const personId = this.session.personId();
+    this.api.leaders(churchId).subscribe({
+      next: (leaders) => {
+        const me = leaders.find((l) => l.person_id === personId);
+        if (!me) return this.switchLeader();
+        const state = this.session.state();
+        if (state) this.session.signIn({ ...state, leader: me });
+      },
+      error: () => this.switchLeader(),
+    });
+  }
 
   protected switchMinistry(event: Event): void {
     this.session.switchMinistry((event.target as HTMLSelectElement).value);
