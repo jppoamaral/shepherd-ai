@@ -92,6 +92,20 @@ export class ApiService {
     });
   }
 
+  /** Resolve: accept Shepherd's replacement on the leader's own roster. Messages no one. */
+  acceptReplacement(churchId: string, huddleId: string, personId: string, ministryId: string): Observable<Huddle> {
+    return this.http.post<Huddle>(`${this.base}/churches/${churchId}/huddles/${huddleId}/accept-replacement`, {
+      person_id: personId,
+      ministry_id: ministryId,
+    });
+  }
+
+  undoReplacement(churchId: string, huddleId: string, personId: string): Observable<Huddle> {
+    return this.http.post<Huddle>(`${this.base}/churches/${churchId}/huddles/${huddleId}/undo-replacement`, {
+      person_id: personId,
+    });
+  }
+
   resolveHuddle(churchId: string, huddleId: string, personId: string, outcome: string): Observable<Huddle> {
     return this.http.post<Huddle>(`${this.base}/churches/${churchId}/huddles/${huddleId}/resolve`, {
       person_id: personId,

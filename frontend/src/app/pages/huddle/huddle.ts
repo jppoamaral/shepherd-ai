@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
-import type { Huddle } from '../../api/types';
+import type { Huddle, HuddleSide } from '../../api/types';
 import { Session } from '../../core/session';
 import { initials } from '../../core/format';
 import { Icon } from '../../ui/icon';
@@ -27,6 +27,8 @@ export class HuddlePage {
   protected readonly working = signal(false);
   protected readonly picked = signal<string | null>(null);
   protected readonly decision = signal<string | null>(null);
+  /** Shown after Undo, once the Resolve confirmation has gone. */
+  protected readonly undone = signal('');
   protected note = '';
 
   protected readonly step = computed(() => {
@@ -46,7 +48,13 @@ export class HuddlePage {
       'Other',
     ];
   });
+  /** After Resolve: the ministry whose roster didn't change (and whose leader wasn't told). */
+  protected readonly untouched = computed(() => {
+    const h = this.huddle();
+    return h?.agenda.sides.find((s) => s.ministry_id !== h.replacement?.ministry_id)?.ministry ?? '';
+  });
   protected readonly initials = initials;
+  protected readonly first = (name: string) => name.split(' ')[0];
 
   constructor() {
     effect(() => {
@@ -59,6 +67,31 @@ export class HuddlePage {
     const h = this.huddle();
     const leader = h?.leaders.find((l) => l.person_id === personId);
     return h?.agenda.sides.find((s) => s.leader === leader?.name)?.ministry ?? '';
+  }
+
+  /** Resolve shows only on a side whose roster this leader approves, while the conflict is open. */
+  protected canResolve(side: HuddleSide): boolean {
+    return !!side.replacement_person_id && this.huddle()?.status !== 'resolved' && this.approves(side.ministry_id);
+  }
+
+  protected approves(ministryId: string | null | undefined): boolean {
+    return !!this.session.leader()?.ministries.some((m) => m.ministry_id === ministryId && m.can_approve);
+  }
+
+  protected resolveWith(side: HuddleSide): void {
+    const h = this.huddle();
+    if (!h || !side.ministry_id) return;
+    this.undone.set('');
+    this.run(this.api.acceptReplacement(this.session.churchId(), h.id, this.session.personId(), side.ministry_id));
+  }
+
+  protected undo(): void {
+    const h = this.huddle();
+    const r = h?.replacement;
+    if (!h || !r) return;
+    this.run(this.api.undoReplacement(this.session.churchId(), h.id, this.session.personId()), () =>
+      this.undone.set(`${this.first(r.volunteer)} is back on ${r.ministry}. The double booking is open again.`),
+    );
   }
 
   protected confirm(): void {
@@ -80,7 +113,7 @@ export class HuddlePage {
     this.run(this.api.startHuddle(this.session.churchId(), findingId, this.session.personId()));
   }
 
-  private run(call: ReturnType<ApiService['startHuddle']>): void {
+  private run(call: ReturnType<ApiService['startHuddle']>, done?: () => void): void {
     this.working.set(true);
     this.error.set('');
     call.subscribe({
@@ -88,6 +121,7 @@ export class HuddlePage {
         this.huddle.set(h);
         this.working.set(false);
         if (h.chosen_slot) this.picked.set(h.chosen_slot.id);
+        done?.();
       },
       error: (e) => {
         this.working.set(false);

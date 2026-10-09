@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.huddles import now_dependency
-from app.db.models import Assignment, AuditLog, Blockout, Message, Proposal
+from app.db.models import Assignment, AuditLog, Blockout, Huddle, Message, Proposal
 from app.domain.enums import ProposalStatus, StatedBy
 from app.main import app
 from tests.conftest import GRACE
@@ -316,3 +316,23 @@ def test_undo_puts_anna_back_and_reopens_the_conflict(
     assert session.scalars(select(AuditLog).where(AuditLog.target_id == str(undo.id))).one()
 
     assert client.post(f"{base}/undo-replacement", json={"person_id": sarah}).status_code == 409
+
+
+def test_a_huddle_saved_before_resolve_existed_gets_its_ids_when_reopened(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    huddle, kids, _ = kids_huddle(client, grace)
+    row = session.get_one(Huddle, uuid.UUID(huddle["id"]))
+    agenda = dict(row.details["agenda"])
+    agenda["sides"] = [
+        {k: v for k, v in side.items() if k not in ("ministry_id", "replacement_person_id")}
+        for side in agenda["sides"]
+    ]
+    row.details = {**row.details, "agenda": agenda}
+    session.flush()
+
+    finding = overlap_for(client, grace, "Sarah Collins", "Anna Parker")
+    reopened = start(client, grace, finding, "Sarah Collins").json()
+    again = next(s for s in reopened["agenda"]["sides"] if s["ministry"] == "Kids")
+    assert again["ministry_id"] == kids["ministry_id"]
+    assert again["replacement_person_id"] == kids["replacement_person_id"]

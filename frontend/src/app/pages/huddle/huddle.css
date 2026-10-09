@@ -25,6 +25,7 @@
 .suggestion { display: flex; flex-direction: column; gap: var(--space-1); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .suggestion:first-of-type { border-top: 0; padding-top: 0; }
 .suggestion b { color: var(--forest); }
+.resolve { align-self: flex-start; margin-top: var(--space-1); }
 
 .agenda { margin: 0; padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
 .agenda li b { font-weight: 600; color: var(--forest); margin-right: var(--space-2); }

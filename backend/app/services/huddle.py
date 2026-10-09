@@ -92,6 +92,7 @@ def start_huddle(
         )
     )
     if existing is not None:
+        _add_side_ids(session, existing, finding)
         return huddle_out(session, existing)
 
     church = session.get_one(Church, church_id)
@@ -383,6 +384,36 @@ def _side(
         replacement_person_id=replacement.person_id if replacement else None,
         replacement_note=note,
     )
+
+
+def _add_side_ids(session: Session, huddle: Huddle, finding: Finding) -> None:
+    """Agendas saved before Resolve existed lack the ids it needs; fill them in once.
+
+    The suggestion stays the one the leaders already saw, and gets an id only if
+    that person is still free for the place.
+    """
+    agenda = HuddleAgenda.model_validate(huddle.details["agenda"])
+    if all(side.ministry_id for side in agenda.sides):
+        return
+    for side in agenda.sides:
+        raw = next((r for r in finding.details["sides"] if r["ministry"] == side.ministry), None)
+        if raw is None:
+            continue
+        side.ministry_id = uuid.UUID(raw["ministry_id"])
+        free = free_candidates(
+            session,
+            huddle.church_id,
+            side.ministry_id,
+            uuid.UUID(raw["role_id"]),
+            finding.person_ids[0],
+            datetime.fromisoformat(raw["start"]),
+            datetime.fromisoformat(raw["end"]),
+        )
+        side.replacement_person_id = next(
+            (c.person_id for c in free if c.name == side.replacement), None
+        )
+    huddle.details = {**huddle.details, "agenda": agenda.model_dump(mode="json")}
+    session.flush()
 
 
 def _overlap_label(details: dict[str, Any], tz: ZoneInfo) -> str:

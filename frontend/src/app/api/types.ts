@@ -10,6 +10,7 @@ export type Roster = S['RosterOut'];
 export type RosterPerson = S['RosterPerson'];
 export type Proposal = S['ProposalOut'];
 export type Huddle = S['HuddleOut'];
+export type HuddleSide = S['HuddleSide'];
 export type HuddleSlot = S['HuddleSlot'];
 export type Memory = S['MemoryOut'];
 export type MemoryItem = S['MemoryItemOut'];

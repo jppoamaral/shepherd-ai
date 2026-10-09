@@ -12,6 +12,9 @@
   }
 </section>
 
+@if (undone()) {
+  <p class="sh-notice sh-notice--info" role="status"><sh-icon name="check" />{{ undone() }}</p>
+}
 @if (error()) {
   <div class="sh-notice sh-notice--error" role="alert"><sh-icon name="alert" /><span>{{ error() }}</span></div>
 }
@@ -51,6 +54,12 @@
             @if (side.replacement) {
               <p><b>{{ side.replacement }}</b>, free that day</p>
               <p class="sh-muted">Could take {{ volunteerFirst() }}'s place as {{ side.role }} on {{ side.ministry }}. Free at that time and not blocked out.</p>
+              @if (canResolve(side)) {
+                <button type="button" class="sh-btn sh-btn--primary resolve" [disabled]="working()" (click)="resolveWith(side)"
+                        [attr.aria-label]="'Resolve: put ' + side.replacement + ' in ' + volunteerFirst() + '\'s place on ' + side.ministry">
+                  Resolve
+                </button>
+              }
             } @else {
               <p><b>No other {{ side.role }} is free that day</b></p>
               <p class="sh-muted">{{ volunteerFirst() }} staying in {{ side.ministry }} is one option.</p>
@@ -93,7 +102,8 @@
         </section>
       }
 
-      @if (h.chosen_slot; as slot) {
+      @if (h.chosen_slot && !h.replacement) {
+        @let slot = h.chosen_slot;
         <section class="sh-card" aria-labelledby="confirmed">
           <span class="sh-tag sh-tag--ok"><sh-icon name="check" />Time confirmed</span>
           <h2 id="confirmed">{{ slot.label }}, with {{ other()?.name }}</h2>
@@ -132,7 +142,21 @@
         </section>
       }
 
-      @if (h.status === 'resolved') {
+      @if (h.replacement; as r) {
+        <section class="sh-card" aria-labelledby="done" role="status">
+          <span class="sh-tag sh-tag--ok"><sh-icon name="check" />Resolved</span>
+          <h2 id="done">{{ first(r.replacement) }} is in {{ first(r.volunteer) }}'s place. {{ untouched() }} wasn't told.</h2>
+          <p class="sh-muted">Checks ran again and the double booking is cleared. Nobody was messaged.</p>
+          <div class="sh-actions">
+            @if (r.can_undo && approves(r.ministry_id)) {
+              <button type="button" class="sh-btn sh-btn--secondary" [disabled]="working()" (click)="undo()">
+                <sh-icon name="back" />Undo
+              </button>
+            }
+            <a class="sh-btn sh-btn--quiet" routerLink="/rosters">Go to rosters</a>
+          </div>
+        </section>
+      } @else if (h.status === 'resolved') {
         <section class="sh-card" aria-labelledby="done" role="status">
           <span class="sh-tag sh-tag--ok"><sh-icon name="check" />Recorded</span>
           <h2 id="done">{{ h.outcome }}</h2>

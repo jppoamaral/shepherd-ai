@@ -439,6 +439,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/churches/{church_id}/huddles/{huddle_id}/accept-replacement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept
+         * @description Resolve: put Shepherd's suggested replacement in the volunteer's place on the leader's
+         *     own roster, through the approval queue. Nobody is messaged.
+         */
+        post: operations["accept_churches__church_id__huddles__huddle_id__accept_replacement_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/churches/{church_id}/huddles/{huddle_id}/undo-replacement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo
+         * @description Undo Resolve: the volunteer goes back on the roster and the huddle reopens.
+         */
+        post: operations["undo_churches__church_id__huddles__huddle_id__undo_replacement_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/churches/{church_id}/ministries/{ministry_id}/memory": {
         parameters: {
             query?: never;
@@ -750,6 +791,19 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HuddleAcceptReplacement */
+        HuddleAcceptReplacement: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /**
+             * Ministry Id
+             * Format: uuid
+             */
+            ministry_id: string;
+        };
         /** HuddleAgenda */
         HuddleAgenda: {
             /** Title */
@@ -809,6 +863,28 @@ export interface components {
             /** Outcome */
             outcome: string | null;
             finding_status: components["schemas"]["FindingStatus"];
+            replacement?: components["schemas"]["HuddleReplacement"] | null;
+        };
+        /**
+         * HuddleReplacement
+         * @description One leader settled the conflict by accepting Shepherd's replacement on their roster.
+         */
+        HuddleReplacement: {
+            /**
+             * Ministry Id
+             * Format: uuid
+             */
+            ministry_id: string;
+            /** Ministry */
+            ministry: string;
+            /** Resolved By */
+            resolved_by: string;
+            /** Volunteer */
+            volunteer: string;
+            /** Replacement */
+            replacement: string;
+            /** Can Undo */
+            can_undo: boolean;
         };
         /** HuddleResolve */
         HuddleResolve: {
@@ -824,6 +900,8 @@ export interface components {
         HuddleSide: {
             /** Ministry */
             ministry: string;
+            /** Ministry Id */
+            ministry_id?: string | null;
             /** Role */
             role: string;
             /** Gathering */
@@ -832,6 +910,8 @@ export interface components {
             leader: string;
             /** Replacement */
             replacement: string | null;
+            /** Replacement Person Id */
+            replacement_person_id?: string | null;
             /** Replacement Note */
             replacement_note: string;
         };
@@ -865,6 +945,14 @@ export interface components {
          * @enum {string}
          */
         HuddleStatus: "offered" | "scheduled" | "resolved" | "cancelled";
+        /** HuddleUndoReplacement */
+        HuddleUndoReplacement: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+        };
         /** IntakeAnswer */
         IntakeAnswer: {
             /**
@@ -2239,6 +2327,78 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["HuddleResolve"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HuddleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_churches__church_id__huddles__huddle_id__accept_replacement_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                huddle_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HuddleAcceptReplacement"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HuddleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_churches__church_id__huddles__huddle_id__undo_replacement_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                huddle_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HuddleUndoReplacement"];
             };
         };
         responses: {
