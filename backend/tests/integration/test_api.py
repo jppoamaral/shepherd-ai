@@ -104,3 +104,16 @@ def test_only_known_endpoints_write(client: TestClient) -> None:
         ("post", "/churches/{church_id}/ministries/{ministry_id}/intake"),
         ("post", "/churches/{church_id}/intake/{intake_id}/answers"),
     }
+
+
+def test_cors_allows_the_angular_dev_server_only(client: TestClient) -> None:
+    def preflight(origin: str):  # type: ignore[no-untyped-def]
+        return client.options(
+            "/churches",
+            headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
+        )
+
+    allowed = preflight("http://localhost:4200")
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "http://localhost:4200"
+    assert "access-control-allow-origin" not in preflight("https://evil.example").headers
