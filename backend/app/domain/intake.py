@@ -114,10 +114,13 @@ class IntakeSlot(BaseModel):
     id: int
     when: str  # as understood, for display: "Sun 11 Oct" / "10/25"
     gathering_id: uuid.UUID | None = None
+    gathering_label: str | None = None
     role_as_written: str
     role_id: uuid.UUID | None = None
+    role_label: str | None = None
     name_as_written: str
     person_id: uuid.UUID | None = None
+    person_label: str | None = None
     left_out: bool = False
 
     @property

@@ -78,6 +78,27 @@ Local setup on macOS: `brew install uv colima docker docker-compose`, then `coli
 
 Set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` (a model with structured outputs) and optionally `AZURE_OPENAI_API_VERSION`. Put them in `backend/.env` for local runs and the repo-root `.env` for docker compose; both are gitignored. Without them, chat endpoints return 503 and evals skip. Tests never call the real model: they inject `FakeLLM` (`app/llm/fake.py`). Prompts live in `app/llm/prompts/`.
 
+## Planned work (beyond the brief's milestones)
+
+- **Onboarding UX pass** (after M3; raised by the user after the M2 demo; the specific confusion from their screenshot is still to be captured). Known weak spots:
+  - **Reads like a form:** 10 fixed topics in order, with long paragraph questions.
+  - **The "that's all" loop:** a section isn't confirmed unless the admin says it's done, so the agent repeats itself.
+  - **Walls of text:** the post-sample reply and the review summary are long bullet dumps.
+  - **Raw sample guesses:** every gathering defaults to 90 minutes, and names are copied as written ("WORSHIP", "keys").
+  - **Heavy roles question:** it asks for every role and minimum at every gathering at once.
+  - **Going back is awkward:** an earlier section can only be changed from the review step.
+  - **Bare terminal client:** no progress indicator ("step 4 of 10") and no hints.
+
+  Directions:
+  - Shorter, warmer replies, possibly written by the model from the structured facts (code still decides).
+  - Show progress.
+  - Treat a complete answer as confirmed.
+  - Ask roles one ministry at a time.
+  - Sensible defaults to confirm (e.g. a 60-minute Sunday service).
+  - Tidy names from samples.
+  - A proper UI once the Angular app exists.
+- **Adding people and memberships** (deferred from M3): intake can't add new people, so unknown names are matched to an existing team member or left out.
+
 ## Gotchas
 
 - **Alembic autogenerate and enums:** enum columns use `enum_column()` (text + CHECK, no native PG enums). Autogenerate emits each enum's CHECK twice, so the upgrade fails with DuplicateObject. After every autogenerate, run `uv run python migrations/fix_enum_checks.py migrations/versions/<new file>.py`. `test_migrations.py` fails if models and migrations drift.
