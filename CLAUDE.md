@@ -58,6 +58,7 @@ Run from the repo root unless noted. (Established in Milestone 1; update this se
 | Task | Command |
 | --- | --- |
 | Start everything (db, migrate, seed, api, worker) | `docker compose up --build` |
+| Fresh demo data (see `docs/demo.md`) | `docker compose down -v && docker compose up -d --build` |
 | Install deps (local) | `cd backend && uv sync` |
 | Run API locally | `cd backend && uv run uvicorn app.main:app --reload` |
 | Run worker locally | `cd backend && uv run python -m app.worker` |
