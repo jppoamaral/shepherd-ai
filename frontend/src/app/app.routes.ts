@@ -15,6 +15,11 @@ export const routes: Routes = [
     children: [
       { path: '', loadComponent: () => import('./pages/home/home').then((m) => m.HomePage), title: 'Home · Shepherd' },
       {
+        path: 'ask',
+        loadComponent: () => import('./pages/ask/ask').then((m) => m.AskPage),
+        title: 'Ask Shepherd · Shepherd',
+      },
+      {
         path: 'rosters',
         loadComponent: () => import('./pages/rosters/rosters').then((m) => m.RostersPage),
         title: 'Rosters · Shepherd',

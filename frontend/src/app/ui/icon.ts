@@ -5,7 +5,9 @@ import { inject } from '@angular/core';
 /** The design system's outline icons (24px grid, 1.75 stroke, round caps), in currentColor. */
 const ICONS = {
   logo: '<path d="M15 21V9a5 5 0 00-10 0v1"/>',
+  chat: '<path d="M5 6h14a2 2 0 012 2v7a2 2 0 01-2 2h-8l-4 3v-3H5a2 2 0 01-2-2V8a2 2 0 012-2z"/>',
   chevron: '<path d="M6 9l6 6 6-6"/>',
+  next: '<path d="M9 6l6 6-6 6"/>',
   back: '<path d="M15 6l-6 6 6 6"/>',
   spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
   pencil: '<path d="M4 20l1-4L16 5l3 3L8 19l-4 1z"/>',

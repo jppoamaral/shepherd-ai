@@ -8,12 +8,14 @@ import { Icon, IconName } from '../ui/icon';
 
 interface NavItem {
   label: string;
+  short?: string; // tab bar label on phones
   icon: IconName;
   link: string | null; // null = not designed yet
 }
 
 const NAV: NavItem[] = [
   { label: 'Home', icon: 'home', link: '/' },
+  { label: 'Ask Shepherd', short: 'Ask', icon: 'chat', link: '/ask' },
   { label: 'Rosters', icon: 'calendar', link: '/rosters' },
   { label: 'People', icon: 'users', link: null },
   { label: 'Memory', icon: 'bookmark', link: '/memory' },
@@ -75,11 +77,11 @@ const NAV: NavItem[] = [
             <a class="sh-navitem" [routerLink]="item.link" routerLinkActive #rla="routerLinkActive"
                [routerLinkActiveOptions]="{ exact: item.link === '/' }"
                [attr.aria-current]="rla.isActive ? 'page' : null">
-              <sh-icon [name]="item.icon" />{{ item.label }}
+              <sh-icon [name]="item.icon" />{{ item.short ?? item.label }}
             </a>
           } @else {
             <span class="sh-navitem soon" aria-disabled="true" title="Not designed yet">
-              <sh-icon [name]="item.icon" />{{ item.label }}
+              <sh-icon [name]="item.icon" />{{ item.short ?? item.label }}
             </span>
           }
         }

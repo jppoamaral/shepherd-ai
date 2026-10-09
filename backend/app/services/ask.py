@@ -475,9 +475,9 @@ def _draft_reminder(ctx: Context, on: date | None) -> AskAnswer:
                         to=p.name,
                         body=(
                             f"Hi {p.name.split(' ')[0]}, a friendly reminder that you're serving "
-                            f"as {role.role} with {ctx.ministry.name} at the {g.name} on "
-                            f"{_day(day)} at {format_time(local.time())}. Reply here if anything "
-                            f"changes. Thank you, {ctx.leader_first}"
+                            f"as {role.role} with {ctx.ministry.name} on {_day(day)} at "
+                            f"{format_time(local.time())}. Reply here if anything changes. "
+                            f"Thank you, {ctx.leader_first}"
                         ),
                     )
                 )
@@ -513,9 +513,8 @@ def _draft_message(
     local = gathering.start_at.astimezone(ctx.tz)
     as_role = f" as {role}" if role else ""
     body = (
-        f"Hi {person.first}, could you serve{as_role} with {ctx.ministry.name} at the "
-        f"{gathering.name} on {_day(day)} at {format_time(local.time())}? Let me know either "
-        f"way. Thanks, {ctx.leader_first}"
+        f"Hi {person.first}, could you serve{as_role} with {ctx.ministry.name} on {_day(day)} "
+        f"at {format_time(local.time())}? Let me know either way. Thanks, {ctx.leader_first}"
     )
     notes = []
     if person.person_id in _blocked_on(ctx, [person.person_id], day):

@@ -577,6 +577,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/churches/{church_id}/ministries/{ministry_id}/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start
+         * @description A greeting and suggested questions built from this week's real data.
+         */
+        get: operations["start_churches__church_id__ministries__ministry_id__ask_get"];
+        put?: never;
+        /**
+         * Answer
+         * @description Answer one question. Read-only: drafts come back to copy; nothing is stored or sent.
+         */
+        post: operations["answer_churches__church_id__ministries__ministry_id__ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -589,6 +613,129 @@ export interface components {
             status: components["schemas"]["OnboardingStatus"];
             /** Proposal Id */
             proposal_id: string | null;
+        };
+        /**
+         * AskAction
+         * @description A button under an answer: ask a follow-up, or open a screen in the app.
+         */
+        AskAction: {
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ask" | "link";
+            intent?: components["schemas"]["AskIntent"] | null;
+            /** About Person Id */
+            about_person_id?: string | null;
+            /** On */
+            on?: string | null;
+            /** Role Id */
+            role_id?: string | null;
+            /** Href */
+            href?: string | null;
+        };
+        /** AskAnswer */
+        AskAnswer: {
+            intent: components["schemas"]["AskIntent"];
+            /** Text */
+            text: string;
+            /**
+             * People
+             * @default []
+             */
+            people: components["schemas"]["AskPerson"][];
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /**
+             * Drafts
+             * @default []
+             */
+            drafts: components["schemas"]["AskDraft"][];
+            /**
+             * Actions
+             * @default []
+             */
+            actions: components["schemas"]["AskAction"][];
+            /** Source */
+            source?: string | null;
+            /**
+             * Looked At
+             * @default []
+             */
+            looked_at: string[];
+            /**
+             * Refused
+             * @default false
+             */
+            refused: boolean;
+        };
+        /**
+         * AskDraft
+         * @description A 1:1 message for the leader to copy. Never stored or sent by Shepherd.
+         */
+        AskDraft: {
+            /**
+             * To Person Id
+             * Format: uuid
+             */
+            to_person_id: string;
+            /** To */
+            to: string;
+            /** Body */
+            body: string;
+        };
+        /**
+         * AskIn
+         * @description A typed question, or a tapped suggestion/action (an intent with its details).
+         */
+        AskIn: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Question */
+            question?: string | null;
+            intent?: components["schemas"]["AskIntent"] | null;
+            /** About Person Id */
+            about_person_id?: string | null;
+            /** On */
+            on?: string | null;
+            /** Role Id */
+            role_id?: string | null;
+        };
+        /**
+         * AskIntent
+         * @description What a leader's Ask Shepherd question is about. Code answers each one.
+         * @enum {string}
+         */
+        AskIntent: "needs_me" | "free_on" | "replace" | "serving_a_lot" | "draft_reminder" | "draft_message" | "remember" | "availability" | "private" | "unknown";
+        /** AskPerson */
+        AskPerson: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Name */
+            name: string;
+            experience: components["schemas"]["Experience"] | null;
+            /** Detail */
+            detail: string;
+        };
+        /** AskStart */
+        AskStart: {
+            /** Ministry */
+            ministry: string;
+            /** Greeting */
+            greeting: string;
+            /** Suggestions */
+            suggestions: components["schemas"]["AskAction"][];
         };
         /**
          * AssignmentStatus
@@ -2582,6 +2729,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProposalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_churches__church_id__ministries__ministry_id__ask_get: {
+        parameters: {
+            query: {
+                /** @description The leader asking */
+                person_id: string;
+            };
+            header?: never;
+            path: {
+                ministry_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskStart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    answer_churches__church_id__ministries__ministry_id__ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ministry_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskAnswer"];
                 };
             };
             /** @description Validation Error */

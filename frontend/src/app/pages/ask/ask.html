@@ -1,0 +1,202 @@
+<section class="page-head">
+  <h1 class="t-h1">Ask Shepherd</h1>
+  <p>Ask in your own words. Shepherd looks at rosters, availability and your notes for {{ ministry() }}.</p>
+</section>
+
+<div class="ask">
+  <div class="conversation">
+    @if (!turns().length) {
+      <section class="sh-card welcome" aria-labelledby="hello">
+        <span class="sh-spark"><sh-icon name="spark" /></span>
+        <h2 id="hello">{{ start()?.greeting ?? 'Hi ' + session.firstName() + '. What can I help with?' }}</h2>
+        <p class="sh-muted">Ask in your own words. I look at rosters, availability and your notes for {{ ministry() }}.</p>
+      </section>
+      <div class="phone-only stack">
+        <ng-container *ngTemplateOutlet="tryAsking" />
+        <ng-container *ngTemplateOutlet="promises" />
+      </div>
+    }
+
+    <div class="log" role="log" aria-label="Conversation with Shepherd" aria-live="polite">
+      @if (turns().length) {
+        <p class="sh-cap day">Today</p>
+      }
+      @for (turn of turns(); track turn.id) {
+        <div class="turn" [id]="'turn-' + turn.id">
+        <div class="you">
+          <span class="sh-cap">You</span>
+          <p class="you-bubble">{{ turn.text }}</p>
+        </div>
+
+        @if (turn.state === 'failed') {
+          <div class="shep" role="alert">
+            <span class="shep-avatar shep-avatar--alert" aria-hidden="true"><sh-icon name="alert" /></span>
+            <div class="sh-notice sh-notice--error failed">
+              <div>
+                <strong>Shepherd couldn't answer that.</strong>
+                <span>Check your connection and try again. Your question is saved.</span>
+                <div class="sh-actions">
+                  <button type="button" class="sh-btn sh-btn--secondary" [disabled]="thinking()" (click)="retry(turn)">
+                    <sh-icon name="retry" />Try again
+                  </button>
+                  <button type="button" class="sh-btn sh-btn--quiet" (click)="copy(turn.text, 'q' + turn.id)">
+                    <sh-icon name="copy" />{{ copied() === 'q' + turn.id ? 'Copied' : 'Copy my question' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        } @else {
+          <div class="shep">
+            <span class="shep-avatar" aria-hidden="true"><sh-icon name="logo" /></span>
+            <div class="shep-body">
+              <span class="sh-cap">Shepherd</span>
+              @if (turn.state === 'thinking') {
+                <div class="answer" role="status">
+                  <p class="sh-muted thinking"><sh-icon name="clock" />Looking at rosters and availability…</p>
+                  <div class="sh-skel"></div><div class="sh-skel"></div><div class="sh-skel short"></div>
+                </div>
+              } @else if (turn.answer; as a) {
+                <div class="answer">
+                  @if (a.refused) {
+                    <span class="sh-tag sh-tag--attn"><sh-icon name="lock" />Can't help with that</span>
+                  }
+                  <p>{{ a.text }}</p>
+
+                  @if (a.people.length) {
+                    <ul class="people">
+                      @for (p of a.people; track p.person_id) {
+                        <li>
+                          <span class="avatar" aria-hidden="true">{{ initials(p.name) }}</span>
+                          <span class="person">
+                            <b>{{ p.name }}@if (p.experience) {<span class="exp"> · {{ experience[p.experience] }}</span>}</b>
+                            <span class="sh-muted">{{ p.detail }}</span>
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                  }
+
+                  @for (note of a.notes; track $index) {
+                    <p class="sh-muted note">{{ note }}</p>
+                  }
+
+                  @for (d of a.drafts; track d.to_person_id; let i = $index) {
+                    @let key = draftKey(turn, i);
+                    <div class="draft">
+                      <span class="sh-tag sh-tag--soft"><sh-icon name="pencil" />Draft · not sent</span>
+                      @if (a.drafts.length > 1) {
+                        <span class="sh-cap">To {{ d.to }}</span>
+                      }
+                      @if (editing() === key) {
+                        <label class="stack">
+                          <span class="visually-hidden">Message to {{ d.to }}</span>
+                          <textarea rows="4" [ngModel]="draftBody(turn, i)" (ngModelChange)="setDraftBody(key, $event)"></textarea>
+                        </label>
+                      } @else {
+                        <p>{{ draftBody(turn, i) }}</p>
+                      }
+                      <div class="sh-actions">
+                        <button type="button" class="sh-btn sh-btn--secondary" (click)="editing.set(editing() === key ? null : key)"
+                                [attr.aria-label]="(editing() === key ? 'Done editing' : 'Edit') + ' the message to ' + d.to">
+                          <sh-icon [name]="editing() === key ? 'check' : 'pencil'" />{{ editing() === key ? 'Done' : 'Edit' }}
+                        </button>
+                        <button type="button" class="sh-btn sh-btn--secondary" (click)="copy(draftBody(turn, i), key)"
+                                [attr.aria-label]="'Copy the message to ' + d.to">
+                          <sh-icon [name]="copied() === key ? 'check' : 'copy'" />{{ copied() === key ? 'Copied' : 'Copy' }}
+                        </button>
+                      </div>
+                    </div>
+                  }
+                  @if (a.drafts.length) {
+                    <p class="sh-note">
+                      <sh-icon name="lock" />
+                      <span>Shepherd doesn't send this. Copy it and send it yourself, 1:1{{ a.drafts.length === 1 ? ' to ' + first(a.drafts[0].to) : '' }}.</span>
+                    </p>
+                  }
+
+                  @if (a.actions.length) {
+                    <div class="sh-actions">
+                      @for (action of a.actions; track $index) {
+                        @if (action.kind === 'link' && action.href) {
+                          <a class="sh-btn sh-btn--secondary" [routerLink]="action.href">{{ action.label }}</a>
+                        } @else {
+                          <button type="button" class="sh-btn sh-btn--secondary" [disabled]="thinking()" (click)="tap(action)">
+                            {{ action.label }}
+                          </button>
+                        }
+                      }
+                    </div>
+                  }
+
+                  @if (a.source) {
+                    <p class="sh-note"><sh-icon name="calendar" />{{ a.source }}</p>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+        </div>
+      }
+    </div>
+    <span class="visually-hidden" role="status">{{ copied() ? 'Copied' : '' }}</span>
+
+    <div class="composer">
+      <form (ngSubmit)="submit()">
+        <input type="text" name="question" [(ngModel)]="draft" maxlength="500" autocomplete="off"
+               aria-label="Ask Shepherd" placeholder="Ask about rosters, people or this week" />
+        <button type="submit" class="sh-btn sh-btn--primary send" [disabled]="thinking()" aria-label="Send question">
+          <sh-icon name="send" /><span class="send-text" aria-hidden="true">Send</span>
+        </button>
+      </form>
+      <p class="sh-cap">Shepherd can be wrong. You decide.</p>
+    </div>
+  </div>
+
+  <aside class="side" aria-label="Help with asking">
+    <ng-container *ngTemplateOutlet="tryAsking" />
+    @if (lookedAt().length) {
+      <section class="sh-card" aria-labelledby="looked">
+        <h2 id="looked">What Shepherd looked at</h2>
+        <ul class="looked">
+          @for (item of lookedAt(); track item) {
+            <li><sh-icon name="check" /><span>{{ item }}</span></li>
+          }
+        </ul>
+        <p class="sh-cap">Shown so you can check the answer.</p>
+      </section>
+    }
+    <ng-container *ngTemplateOutlet="promises" />
+  </aside>
+</div>
+
+<ng-template #tryAsking>
+  <section class="sh-card" aria-labelledby="try">
+    <h2 id="try">Try asking</h2>
+    @if (start(); as s) {
+      <div class="suggestions">
+        @for (suggestion of s.suggestions; track suggestion.label) {
+          <button type="button" class="suggestion" [disabled]="thinking()" (click)="tap(suggestion)">
+            <span>{{ suggestion.label }}</span><sh-icon name="next" />
+          </button>
+        }
+      </div>
+    } @else if (startFailed()) {
+      <p class="sh-muted">Suggestions didn't load. You can still type a question.</p>
+    } @else {
+      <div role="status" aria-label="Loading suggestions" class="stack">
+        <div class="sh-skel"></div><div class="sh-skel"></div><div class="sh-skel short"></div>
+      </div>
+    }
+  </section>
+</ng-template>
+
+<ng-template #promises>
+  <div class="sh-notice sh-notice--info promises">
+    <div>
+      <p><sh-icon name="lock" /><span>I never send or record anything until you approve it.</span></p>
+      <p><sh-icon name="bookmark" /><span>I don't keep health, family or personal reasons, so I can't answer questions about them.</span></p>
+    </div>
+  </div>
+</ng-template>

@@ -144,7 +144,7 @@ def test_draft_message_asks_one_person_one_to_one(client: TestClient, grace: dic
     ).json()
     (draft,) = out["drafts"]
     assert draft["to"] == "Anna Peterson"
-    assert draft["body"].startswith("Hi Anna, could you serve with Kids at the Sunday")
+    assert draft["body"].startswith("Hi Anna, could you serve with Kids on Sun Oct 11 at 9:30 AM?")
 
 
 def test_remember_shows_confirmed_memories_and_pending_ones(

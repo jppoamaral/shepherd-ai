@@ -3,6 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import type {
+  AskAnswer,
+  AskIn,
+  AskStart,
   Briefing,
   Church,
   Huddle,
@@ -90,6 +93,18 @@ export class ApiService {
       person_id: personId,
       slot_id: slotId,
     });
+  }
+
+  /** Ask Shepherd: a greeting and suggested questions from this week's data. */
+  askStart(churchId: string, ministryId: string, personId: string): Observable<AskStart> {
+    return this.http.get<AskStart>(`${this.base}/churches/${churchId}/ministries/${ministryId}/ask`, {
+      params: { person_id: personId },
+    });
+  }
+
+  /** One question (typed, or a tapped suggestion). Read-only: drafts come back to copy. */
+  ask(churchId: string, ministryId: string, body: AskIn): Observable<AskAnswer> {
+    return this.http.post<AskAnswer>(`${this.base}/churches/${churchId}/ministries/${ministryId}/ask`, body);
   }
 
   /** Resolve: accept Shepherd's replacement on the leader's own roster. Messages no one. */

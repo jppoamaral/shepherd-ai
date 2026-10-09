@@ -28,6 +28,9 @@
   z-index: 10;
 }
 .tabbar .sh-navitem { text-decoration: none; }
+/* Six tabs now that Ask sits after Home (the design system's bar is laid out for five). */
+.tabbar { grid-template-columns: repeat(6, 1fr); }
+.tabbar .sh-navitem .sh-i { padding: 4px 12px; }
 .soon { opacity: 0.7; cursor: default; }
 
 .avatar--big {

@@ -1,0 +1,105 @@
+:host { display: flex; flex-direction: column; gap: var(--space-5); }
+.short { max-width: 60%; }
+.sh-card h2 { font: 500 22px/28px var(--font-serif); }
+
+.ask { display: flex; flex-direction: column; gap: var(--space-5); }
+.conversation { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.side { display: none; }
+
+.welcome { align-items: flex-start; }
+.welcome h2 { font: 500 22px/28px var(--font-serif); }
+
+/* The conversation */
+.log { display: flex; flex-direction: column; gap: var(--space-4); }
+.day { text-align: center; }
+.turn { display: flex; flex-direction: column; gap: var(--space-4); scroll-margin-bottom: calc(72px + 140px); }
+.you { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); }
+.you-bubble {
+  max-width: 88%; padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+  background: var(--forest); color: var(--on-forest); font: 500 16px/24px var(--font-sans);
+}
+.shep { display: flex; gap: var(--space-2); align-items: flex-start; }
+.shep-avatar {
+  flex: none; width: 32px; height: 32px; margin-top: 20px; border-radius: var(--radius-pill);
+  background: var(--sage); color: var(--forest); display: grid; place-items: center;
+}
+.shep-avatar--alert { margin-top: 0; background: var(--status-alert-bg); color: var(--status-alert-ink); }
+.shep-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.answer {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  background: var(--paper); border: 1px solid var(--line); box-shadow: var(--shadow-card);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm);
+  padding: var(--space-3) var(--space-4); color: var(--forest);
+}
+.answer > .sh-tag { align-self: flex-start; }
+.thinking { display: flex; align-items: center; gap: var(--space-2); }
+.note { font-size: 14px; line-height: 20px; }
+.failed { flex: 1; }
+.failed > div { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.people {
+  margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column;
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--cream);
+}
+.people li { display: flex; align-items: center; gap: var(--space-3); min-height: 60px; padding: var(--space-2) var(--space-3); }
+.people li + li { border-top: 1px solid var(--line); }
+.people .avatar { font: 600 16px/22px var(--font-serif); }
+.person { display: flex; flex-direction: column; min-width: 0; font-size: 14px; line-height: 20px; }
+.person b { font: 600 16px/22px var(--font-serif); color: var(--forest); }
+.exp { font: 600 12px/16px var(--font-sans); color: var(--ink-muted); }
+
+.draft {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  background: var(--cream); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3);
+}
+.draft > .sh-tag { align-self: flex-start; }
+.draft textarea {
+  font: 400 16px/24px var(--font-sans); color: var(--ink); width: 100%;
+  border: 1.5px solid var(--line-strong); border-radius: var(--radius-md);
+  background: var(--paper); padding: var(--space-2) var(--space-3); resize: vertical;
+}
+.sh-note { align-items: flex-start; }
+
+/* Composer: stays in reach above the phone's tab bar */
+.composer {
+  /* The shell's tab bar is about 80px tall; the composer's own padding closes the gap. */
+  position: sticky; bottom: 76px; z-index: 5;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3) 0 var(--space-3); background: var(--cream);
+}
+.composer form { display: flex; gap: var(--space-2); align-items: center; }
+.composer input {
+  flex: 1; min-width: 0; min-height: 52px; padding: 0 var(--space-4);
+  border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong);
+  background: var(--paper); color: var(--ink); font: 400 16px/24px var(--font-sans);
+}
+.send { min-width: 52px; min-height: 52px; padding: 0; border-radius: var(--radius-pill); }
+.send-text { display: none; }
+
+/* Try asking and the promises */
+.suggestions { display: flex; flex-direction: column; gap: var(--space-2); }
+.suggestion {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  width: 100%; min-height: 48px; padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md); border: 1.5px solid var(--line-strong);
+  background: var(--paper); color: var(--forest); font: 600 14px/20px var(--font-sans);
+  cursor: pointer; text-align: left;
+}
+.suggestion sh-icon { display: inline-flex; flex: none; color: var(--ink-muted); }
+.suggestion[disabled] { cursor: not-allowed; opacity: 0.7; }
+.looked { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); font-size: 14px; line-height: 20px; }
+.looked li { display: flex; gap: var(--space-2); align-items: flex-start; }
+.promises > div { display: flex; flex-direction: column; gap: var(--space-2); }
+.promises p { display: flex; gap: var(--space-2); align-items: flex-start; }
+
+@media (min-width: 960px) {
+  .ask { flex-direction: row; align-items: flex-start; gap: var(--space-6); }
+  .conversation { flex: 1 1 440px; max-width: 700px; }
+  .side { display: flex; flex-direction: column; gap: var(--space-5); flex: 0 1 320px; position: sticky; top: var(--space-4); }
+  .phone-only { display: none; }
+  .composer { bottom: 0; padding-bottom: var(--space-4); }
+  .turn { scroll-margin-bottom: 140px; }
+  .send { padding: 0 var(--space-5); }
+  .send-text { display: inline; }
+}
