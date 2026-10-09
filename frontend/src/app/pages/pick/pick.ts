@@ -12,6 +12,7 @@ import { Icon } from '../../ui/icon';
   imports: [Icon, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
+    .people { list-style: none; margin: 0; padding: 0; }
     .wrap { min-height: 100vh; display: grid; place-items: center; padding: var(--space-5) var(--space-4); }
     .who { width: 100%; max-width: 480px; }
     .person { width: 100%; justify-content: flex-start; gap: var(--space-3); padding: var(--space-2) var(--space-4);
@@ -46,21 +47,23 @@ import { Icon } from '../../ui/icon';
         @if (error()) {
           <p class="error-text" role="alert">{{ error() }}</p>
         }
-        <div class="stack" role="list">
+        <ul class="stack people" aria-label="Leaders">
           @for (leader of leaders(); track leader.person_id) {
-            <button type="button" class="sh-btn sh-btn--secondary person" role="listitem" (click)="choose(leader)">
-              <span class="avatar">{{ initials(leader.name) }}</span>
-              <span class="person-text">
-                <span class="person-name">{{ leader.name }}</span>
-                <span class="sh-cap">{{ duties(leader) }}</span>
-              </span>
-            </button>
+            <li>
+              <button type="button" class="sh-btn sh-btn--secondary person" (click)="choose(leader)">
+                <span class="avatar">{{ initials(leader.name) }}</span>
+                <span class="person-text">
+                  <span class="person-name">{{ leader.name }}</span>
+                  <span class="sh-cap">{{ duties(leader) }}</span>
+                </span>
+              </button>
+            </li>
           } @empty {
             @if (!error()) {
-              <div role="status" class="stack"><div class="sh-skel"></div><div class="sh-skel"></div></div>
+              <li role="status" class="stack"><div class="sh-skel"></div><div class="sh-skel"></div></li>
             }
           }
-        </div>
+        </ul>
         <hr class="divider" />
         <a class="sh-btn sh-btn--quiet volunteer-link" routerLink="/demo/volunteers" [queryParams]="{ church: churchId() }">
           <span class="avatar"><sh-icon name="chat" /></span>

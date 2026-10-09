@@ -48,3 +48,17 @@ class NoticeWriter:
         self.session.delete(notice)  # gone for good, including any note
         self.session.flush()
         return True
+
+    def withdraw(self, *, about_person_id: uuid.UUID, kind: str) -> int:
+        """Delete unread notices of one kind about one person; returns how many."""
+        notices = self.session.scalars(
+            select(LeaderNotice).where(
+                LeaderNotice.church_id == self.church_id,
+                LeaderNotice.about_person_id == about_person_id,
+                LeaderNotice.kind == kind,
+            )
+        ).all()
+        for notice in notices:
+            self.session.delete(notice)
+        self.session.flush()
+        return len(notices)

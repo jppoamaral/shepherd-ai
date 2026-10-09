@@ -154,7 +154,8 @@ def _route(ctx: Inbound, text: str, llm: LLMClient | None) -> list[BotReply]:
         return _start(ctx)
     if WHAT_I_KNOW.search(text):
         return _what_i_know(ctx)
-    if ctx.person.stopped:
+    # "stop" means no new reminders; she can still answer one she already has.
+    if ctx.person.stopped and _open_reminder(ctx) is None:
         return [_say(ctx, "Reminders are off. Write 'start' anytime to turn them back on.")]
 
     awaiting = ctx.convo.awaiting
@@ -352,8 +353,7 @@ def _stop(ctx: Inbound) -> list[BotReply]:
     _await(ctx, None)
     if not ctx.person.stopped:
         _approve(ctx, reply_types.STOP, {})
-        for ministry_id in _ministries(ctx):
-            _tell_leaders(ctx, ministry_id, "stopped", f"{ctx.person.name} turned off reminders.")
+        _tell_or_withdraw(ctx, "stopped", "started", f"{ctx.person.name} turned off reminders.")
     return [
         _say(
             ctx,
@@ -367,10 +367,7 @@ def _start(ctx: Inbound) -> list[BotReply]:
     _await(ctx, None)
     if ctx.person.stopped:
         _approve(ctx, reply_types.START, {})
-        for ministry_id in _ministries(ctx):
-            _tell_leaders(
-                ctx, ministry_id, "started", f"{ctx.person.name} turned reminders back on."
-            )
+        _tell_or_withdraw(ctx, "started", "stopped", f"{ctx.person.name} turned reminders back on.")
     return [_say(ctx, "Welcome back! I'll send your reminders again.")]
 
 
@@ -448,6 +445,16 @@ def _tell_leaders(
     NoticeWriter(ctx.session, ctx.church.id).add(
         ministry_id=ministry_id, about_person_id=ctx.person.id, kind=kind, text=text, note=note
     )
+
+
+def _tell_or_withdraw(ctx: Inbound, kind: str, opposite: str, text: str) -> None:
+    """Stop then start (or back) before a leader has read it: withdraw the first notice
+    instead of adding a second, so leaders only hear about a change that stands."""
+    writer = NoticeWriter(ctx.session, ctx.church.id)
+    if writer.withdraw(about_person_id=ctx.person.id, kind=opposite):
+        return
+    for ministry_id in _ministries(ctx):
+        _tell_leaders(ctx, ministry_id, kind, text)
 
 
 def _ministries(ctx: Inbound) -> list[uuid.UUID]:

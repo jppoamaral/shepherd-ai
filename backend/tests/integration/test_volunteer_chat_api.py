@@ -277,6 +277,17 @@ def test_stop_and_start(client: TestClient, grace: dict, session: Session) -> No
         "Welcome back! I'll send your reminders again."
     ]
     assert anna.stopped is False
+    # Back on before Sarah read "turned off": that notice is withdrawn, not doubled.
+    assert [n.kind for n in session.scalars(select(LeaderNotice))] == []
+
+
+def test_after_stop_she_can_still_answer_the_reminder_she_has(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    send_kids_reminders(client, grace)
+    say(client, grace, "Anna Parker", "stop")
+    assert say(client, grace, "Anna Parker", "1") == ["Thank you, Anna! See you Sunday."]
+    assert annas_kids_place(session, grace).status is AssignmentStatus.CONFIRMED
 
 
 def test_what_i_know_shows_only_what_she_told_shepherd(

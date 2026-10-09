@@ -13,7 +13,7 @@ import { Icon } from '../../ui/icon';
   styles: `
     .wrap { min-height: 100vh; display: grid; place-items: center; padding: var(--space-5) var(--space-4); }
     .who { width: 100%; max-width: 480px; }
-    .list { max-height: 60vh; overflow-y: auto; }
+    .list { max-height: 60vh; overflow-y: auto; list-style: none; margin: 0; padding: 0; }
     .person { width: 100%; justify-content: flex-start; gap: var(--space-3); padding: var(--space-2) var(--space-4);
       min-height: 64px; border-radius: var(--radius-md); text-align: left; }
     .person-text { display: flex; flex-direction: column; flex: 1; }
@@ -26,9 +26,9 @@ import { Icon } from '../../ui/icon';
         <a class="sh-btn sh-btn--quiet back" routerLink="/pick"><sh-icon name="back" />Back to leaders</a>
         <h1 class="t-h1">Open a volunteer's chat</h1>
         <p class="sh-muted">Demo only. Volunteers never use the app; in real life this is their Telegram chat with Shepherd.</p>
-        <div class="stack list" role="list">
+        <ul class="stack list" aria-label="Volunteers">
           @for (v of ordered(); track v.person_id) {
-            <a class="sh-btn sh-btn--secondary person" role="listitem"
+            <li><a class="sh-btn sh-btn--secondary person"
                [routerLink]="['/demo/chat', v.person_id]" [queryParams]="{ church: church() }">
               <span class="avatar">{{ initials(v.name) }}</span>
               <span class="person-text">
@@ -40,11 +40,11 @@ import { Icon } from '../../ui/icon';
               } @else if (!v.connected) {
                 <span class="sh-tag sh-tag--soft">Not connected</span>
               }
-            </a>
+            </a></li>
           } @empty {
-            <div role="status" class="stack"><div class="sh-skel"></div><div class="sh-skel"></div></div>
+            <li role="status" class="stack"><div class="sh-skel"></div><div class="sh-skel"></div></li>
           }
-        </div>
+        </ul>
       </div>
     </main>
   `,

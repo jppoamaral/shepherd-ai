@@ -16,7 +16,8 @@
   display: flex; flex-direction: column; overflow: hidden;
   border: 1px solid var(--line); border-radius: 36px; background: var(--sage); box-shadow: var(--shadow-card);
 }
-:host(.embedded) .phone { height: calc(100vh - 96px); min-height: 0; }
+:host(.embedded) .phone { height: calc(100vh - 128px); min-height: 0; }
+:host(.embedded) .page { overflow: hidden; }
 .chat-head {
   display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-2);
   background: var(--paper); border-bottom: 1px solid var(--line);

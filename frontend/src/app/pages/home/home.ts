@@ -58,7 +58,7 @@ export class HomePage {
   protected readonly needsYou = computed(
     () =>
       this.items().filter((i) => i.type !== 'load').length +
-      this.myNotices().length +
+      this.myNotices().filter((n) => n.kind === 'declined' || n.kind === 'cant_commit').length +
       (this.showSamples() && !this.checkInAnswered() ? 1 : 0),
   );
   protected readonly today = computed(() => longDate(churchToday(this.session.state()?.timezone ?? 'UTC')));

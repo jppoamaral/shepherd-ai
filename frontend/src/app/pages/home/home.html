@@ -33,7 +33,7 @@
       <article class="sh-card" aria-labelledby="notice-{{ n.id }}">
         <div class="sh-brief-head">
           <span class="sh-tag sh-tag--attn"><sh-icon name="chat" />From {{ first(n.about) }}'s chat</span>
-          <span class="sh-cap">{{ n.kind === 'declined' ? 'Needs you' : 'Good to know' }}</span>
+          <span class="sh-cap">{{ n.kind === 'declined' || n.kind === 'cant_commit' ? 'Needs you' : 'Good to know' }}</span>
         </div>
         <h3 [id]="'notice-' + n.id">{{ n.text }}</h3>
         @if (n.note) {
