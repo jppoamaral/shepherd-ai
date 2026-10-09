@@ -126,6 +126,9 @@ class ProposalOut(Schema):
     decided_by_person_id: uuid.UUID | None
     decided_at: datetime | None
     payload: dict[str, Any]
+    # Plain language for the approval queue, filled in by the API.
+    title: str = ""
+    summary: str = ""
 
 
 class OnboardingStart(BaseModel):

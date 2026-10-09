@@ -120,3 +120,24 @@ def test_intakes_are_scoped_to_their_church(client: TestClient, llm: FakeLLM) ->
         json={"person_id": people["Sarah Collins"], "text": "."},
     )
     assert other.status_code == 404
+
+
+def test_approval_queue_describes_a_roster_in_plain_language(
+    client: TestClient, llm: FakeLLM
+) -> None:
+    cid, kids, people = ids(client)
+    llm.queue(parsed("Rachel", "Emily"))
+    intake = client.post(
+        f"/churches/{cid}/ministries/{kids}/intake",
+        json={"person_id": people["Sarah Collins"], "text": "."},
+    ).json()
+    (pending,) = [
+        p
+        for p in client.get(f"/churches/{cid}/proposals", params={"status": "pending"}).json()
+        if p["id"] == intake["proposal_id"]
+    ]
+    assert pending["title"] == "Kids roster (2 assignments)"
+    assert pending["summary"].splitlines() == [
+        "• Sunday 9:30 Service, Sun 11 Oct 9:30 AM · Helper · Rachel Turner",
+        "• Sunday 9:30 Service, Sun 11 Oct 9:30 AM · Helper · Emily Brooks",
+    ]

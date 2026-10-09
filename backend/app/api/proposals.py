@@ -13,6 +13,7 @@ from app.domain.enums import ProposalStatus
 from app.domain.schemas import DecisionIn, ProposalOut
 from app.services.approval import ApprovalService
 from app.services.errors import ApprovalError, NotAllowed, NotFound
+from app.services.proposal_text import describe
 
 router = APIRouter(tags=["proposals"])
 
@@ -21,7 +22,7 @@ router = APIRouter(tags=["proposals"])
 def list_proposals(
     reader: ReaderDep, status_: Annotated[ProposalStatus | None, Query(alias="status")] = None
 ) -> list[ProposalOut]:
-    return reader.proposals(status_)
+    return describe(reader.session, reader.church_id, reader.proposals(status_))
 
 
 @router.post("/churches/{church_id}/proposals/{proposal_id}/approve")
@@ -49,4 +50,7 @@ def _decide(reader: ChurchReader, decide: Callable[[], Proposal]) -> ProposalOut
         reader.session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     reader.session.commit()
-    return ProposalOut.model_validate(proposal)
+    (described,) = describe(
+        reader.session, reader.church_id, [ProposalOut.model_validate(proposal)]
+    )
+    return described
