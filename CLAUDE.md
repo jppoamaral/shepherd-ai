@@ -67,6 +67,7 @@ Run from the repo root unless noted. (Established in Milestone 1; update this se
 | Test | `cd backend && uv run pytest` (uses FakeLLM; evals excluded) |
 | Model evals | `cd backend && uv run pytest -m eval tests/evals` (needs Azure OpenAI keys; skipped otherwise) |
 | Onboarding chat (terminal) | `cd backend && uv run python -m app.cli.onboard` (API must be running) |
+| Schedule intake (try it) | `http://localhost:8000/docs` → `POST /churches/{id}/ministries/{id}/intake` as the ministry's scheduler, then answer the questions and approve the proposal |
 | Lint / format | `cd backend && uv run ruff check . && uv run ruff format .` |
 | Type check | `cd backend && uv run mypy` |
 
@@ -76,7 +77,7 @@ Local setup on macOS: `brew install uv colima docker docker-compose`, then `coli
 
 ## Language model
 
-Set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` (a model with structured outputs) and optionally `AZURE_OPENAI_API_VERSION`. Put them in `backend/.env` for local runs and the repo-root `.env` for docker compose; both are gitignored. Without them, chat endpoints return 503 and evals skip. Tests never call the real model: they inject `FakeLLM` (`app/llm/fake.py`). Prompts live in `app/llm/prompts/`.
+Set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` (a model with structured outputs) and optionally `AZURE_OPENAI_API_VERSION`. Put them in `backend/.env` for local runs and the repo-root `.env` for docker compose; both are gitignored. Without them, chat endpoints return 503 and evals skip. Tests never call the real model: they inject `FakeLLM` (`app/llm/fake.py`). Prompts live in `app/llm/prompts/`. Evals are run several times before a prompt change is trusted, since model output varies; when an eval flakes, fix the cause (a missing fact such as today's date, an ambiguous field) rather than loosening the check.
 
 ## Planned work (beyond the brief's milestones)
 

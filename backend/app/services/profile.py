@@ -414,7 +414,7 @@ def infer_from_sample(
 
     for slot in sample.slots:
         day = parse_date(slot.date) if slot.date else None
-        weekday = slot.weekday or (Weekday(list(Weekday)[day.weekday()]) if day else None)
+        weekday = list(Weekday)[day.weekday()] if day else slot.weekday
         start = parse_time(slot.start_time) if slot.start_time else None
         key = _slot_key(slot.gathering, weekday, start)
         occurrences[key].add(day)
@@ -452,7 +452,7 @@ def infer_from_sample(
     counts: dict[tuple[str, str, str], list[int]] = defaultdict(list)
     for slot in sample.slots:
         day = parse_date(slot.date) if slot.date else None
-        weekday = slot.weekday or (Weekday(list(Weekday)[day.weekday()]) if day else None)
+        weekday = list(Weekday)[day.weekday()] if day else slot.weekday
         start = parse_time(slot.start_time) if slot.start_time else None
         gathering_name = gathering_for_key.get(_slot_key(slot.gathering, weekday, start))
         if gathering_name is None:

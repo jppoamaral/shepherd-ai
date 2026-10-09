@@ -55,10 +55,14 @@ TOPIC_GUIDANCE: dict[OnboardingTopic, str] = {
     ),
     T.LOAD_RULES: (
         "Section: how the church sees serving frequency, as rules per week and/or per month: "
-        "normal_max is the most that is normal; warning_above is the count above which it's a "
-        "warning (equal to normal_max if anything above normal is a warning). An empty list "
-        "means no rules. Also absence_threshold_weeks: weeks without serving before the "
-        "approver hears about it (null if not said)."
+        "normal_max is the most that is normal; a count greater than warning_above is a "
+        "warning. If anything above normal should be flagged, warning_above equals normal_max. "
+        "Examples: 'twice a month is plenty, flag anything more' -> month, normal_max 2, "
+        "warning_above 2. 'Weekly is normal, more than twice a week is too much' -> week, "
+        "normal_max 1, warning_above 2. 'Up to 3 a month is fine, 4 is a lot, 5+ is too much' "
+        "-> month, normal_max 3, warning_above 4. An empty list means no rules. Also "
+        "absence_threshold_weeks: weeks without serving before the approver hears about it "
+        "(null if not said)."
     ),
     T.ROUTING: (
         "Section: for each kind of finding, who hears first: scheduler, approver or both. "
@@ -82,6 +86,9 @@ TOPIC_GUIDANCE: dict[OnboardingTopic, str] = {
 
 SAMPLE = """\
 You read a pasted volunteer schedule from a church and report its structure.
+Dates are often written without a year ("Sun 9/6"): use the year that puts the date
+closest to today (from the facts) AND on the weekday written next to it. A date and
+its weekday must always agree.
 For each gathering occurrence, and each ministry and role in it, return one slot with
 the date (YYYY-MM-DD) if shown, the weekday, the start time (24-hour HH:MM) if shown,
 the gathering's name as written if any, the ministry, the role, and how many people

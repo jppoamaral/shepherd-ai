@@ -23,6 +23,7 @@ from app.domain.profile import (
     RolesReply,
     RoutingReply,
     SampleReply,
+    SampleSlot,
 )
 from app.services.profile import (
     TOPIC_ORDER,
@@ -283,3 +284,25 @@ def test_renaming_a_ministry_keeps_its_roles_and_leaders() -> None:
     assert [r.name for r in kids.roles] == ["Helper"]
     assert [leader.name for leader in kids.leaders] == ["Sarah Collins"]
     assert T.ROLES in result.draft.confirmed and T.LEADERS in result.draft.confirmed
+
+
+def test_a_dates_weekday_wins_over_the_models_weekday() -> None:
+    """Seen live: the model labelled 2026-09-06 (a Sunday) as Wednesday."""
+    wrong = SampleReply(
+        slots=[
+            SampleSlot(
+                date=d,
+                weekday=Weekday.WEDNESDAY,
+                start_time="09:30",
+                gathering=None,
+                ministry="Kids",
+                role="Helper",
+                people_count=2,
+            )
+            for d in ("2026-09-06", "2026-09-13")
+        ],
+        clarifying_question=None,
+    )
+    draft, _ = infer_from_sample(ChurchProfileDraft(), wrong)
+    (gathering,) = draft.gatherings
+    assert gathering.weekday is Weekday.SUNDAY

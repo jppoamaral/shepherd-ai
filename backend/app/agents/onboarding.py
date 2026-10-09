@@ -105,7 +105,12 @@ class OnboardingAgent:
         if state.status is not OnboardingStatus.ACTIVE:
             return self._closed(state)
 
-        sample = self.llm.complete(system=prompts.SAMPLE, user=text, schema=SampleReply)
+        today = datetime.now(UTC).date().isoformat()
+        sample = self.llm.complete(
+            system=prompts.SAMPLE,
+            user=f"Facts (JSON):\n{json.dumps({'today': today})}\n\nPasted schedule:\n{text}",
+            schema=SampleReply,
+        )
         if not sample.slots:
             message = (
                 sample.clarifying_question
