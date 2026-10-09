@@ -1,0 +1,204 @@
+<section class="page-head">
+  <p class="eyebrow date">{{ today() }}</p>
+  @if (loading()) {
+    <div role="status" class="stack" aria-label="Loading your week">
+      <div class="sh-skel skel-title"></div>
+      <div class="sh-skel"></div>
+    </div>
+  } @else {
+    <h1 class="t-display">
+      @if (needsYou() > 0) {
+        {{ session.ministry()?.ministry }}: {{ needsYou() }} {{ needsYou() === 1 ? 'thing needs' : 'things need' }} you this week
+      } @else {
+        {{ session.ministry()?.ministry }}: all clear for this week
+      }
+    </h1>
+    <p>Good morning, {{ session.firstName() }}. Here is what Shepherd noticed.</p>
+  }
+  <div class="sh-notice sh-notice--info">
+    <sh-icon name="lock" />
+    <span>Shepherd suggests, you decide. Nothing is recorded or sent until you approve.</span>
+  </div>
+</section>
+
+@if (error()) {
+  <div class="sh-notice sh-notice--error" role="alert"><sh-icon name="alert" /><span>{{ error() }}</span></div>
+}
+
+<div class="two-cols">
+  <section class="section" aria-labelledby="this-week">
+    <h2 class="section-title" id="this-week">This week</h2>
+
+    @for (item of items(); track item.finding_id) {
+      @switch (kind(item)) {
+        @case ('overlap') {
+          <article class="sh-card">
+            <div class="sh-brief-head">
+              <span class="sh-tag sh-tag--attn"><sh-icon name="alert" />Shared volunteer</span>
+              <span class="sh-cap">Needs you</span>
+            </div>
+            <h3>{{ overlapHeadline(item) }}</h3>
+            <p>{{ item.text }} Shepherd won't move anyone.</p>
+            @if (item.can_huddle) {
+              <div class="sh-actions">
+                <a class="sh-btn sh-btn--primary" [routerLink]="['/huddle', item.finding_id]">See options</a>
+                <a class="sh-btn sh-btn--secondary" [routerLink]="['/huddle', item.finding_id]">Find a time to talk</a>
+              </div>
+            }
+          </article>
+        }
+        @case ('load') {
+          <article class="sh-card">
+            <div class="sh-brief-head">
+              <span class="sh-tag sh-tag--soft"><sh-icon name="clock" />Good to know</span>
+              <span class="sh-cap">No action needed</span>
+            </div>
+            <h3>{{ split(item.text)[0] }}.</h3>
+            <p>{{ split(item.text)[1] }} It may be worth a check-in before you ask again.</p>
+          </article>
+        }
+        @case ('below_minimum') {
+          <article class="sh-card">
+            <div class="sh-brief-head">
+              <span class="sh-tag sh-tag--soft"><sh-icon name="calendar" />Open slot</span>
+              <span class="sh-cap">Needs you</span>
+            </div>
+            <h3>{{ item.text }}</h3>
+            <div class="sh-actions">
+              <a class="sh-btn sh-btn--secondary" routerLink="/rosters">See options</a>
+            </div>
+          </article>
+        }
+      }
+    }
+
+    <!-- SAMPLE: absence check-in (not produced by the backend yet) -->
+    @if (showSamples() && !checkInAnswered()) {
+      <article class="sh-card">
+        <div class="sh-brief-head">
+          <span class="sh-tag sh-tag--soft"><sh-icon name="users" />Check-in</span>
+          <span class="sh-cap">Needs you</span>
+        </div>
+        <h3>Hannah hasn't served since Sept 7. Still on the team?</h3>
+        <div class="sh-actions">
+          <button type="button" class="sh-btn sh-btn--primary" (click)="checkInAnswered.set(true)">Yes</button>
+          <button type="button" class="sh-btn sh-btn--quiet" (click)="checkInAnswered.set(true)">Ask me later</button>
+        </div>
+        <div class="sh-note"><sh-icon name="lock" />Shepherd won't contact Hannah.</div>
+      </article>
+    }
+
+    @if (!loading() && items().length === 0 && !(showSamples() && !checkInAnswered())) {
+      <div class="sh-card sh-state">
+        <span class="sh-spark"><sh-icon name="check" /></span>
+        <h3>All clear for this week</h3>
+        <p>Rosters are covered and nobody is double-booked. Shepherd will let you know if anything changes.</p>
+      </div>
+    }
+  </section>
+
+  <section class="section" aria-labelledby="approval">
+    <div>
+      <h2 class="section-title" id="approval">Ready for your approval</h2>
+      <p class="sh-muted">
+        {{ approvalCount() }} {{ approvalCount() === 1 ? 'thing' : 'things' }} waiting. Nothing is sent until you approve.
+      </p>
+    </div>
+
+    @if (queueMessage()) {
+      <p class="sh-notice sh-notice--info" role="status"><sh-icon name="check" />{{ queueMessage() }}</p>
+    }
+
+    @for (p of rosterProposals(); track p.id) {
+      <article class="sh-card">
+        <div class="sh-brief-head">
+          <span class="sh-tag sh-tag--soft"><sh-icon name="calendar" />Ready to review</span>
+        </div>
+        <h3>{{ p.title }}</h3>
+        <div class="sh-bubble summary">{{ p.summary }}</div>
+        <div class="sh-actions">
+          <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === p.id" (click)="approveRoster(p)">
+            Approve roster
+          </button>
+        </div>
+      </article>
+    }
+
+    <!-- SAMPLE: reminders and sending (later milestone); counts and date come from the real roster. -->
+    @if (showSamples()) {
+      <article class="sh-card">
+        <div class="sh-brief-head">
+          <span class="sh-tag sh-tag--soft"><sh-icon name="send" />Ready to review</span>
+        </div>
+        @if (nextGathering(); as g) {
+          <h3>{{ g.filled }} reminders ready for {{ monthDay(g.start_at) }}</h3>
+        } @else {
+          <h3>Reminders ready for Sunday</h3>
+        }
+        <div class="sh-bubble">
+          Hi Rachel, this is {{ session.firstName() }}. You're helping with Kids on Sunday at 9:30. Reply here if anything
+          changes. Thank you for serving.
+        </div>
+        <div class="sh-cap">Private 1:1 messages from you. Nothing is sent until you approve.</div>
+        @switch (sendState()) {
+          @case ('ready') {
+            <div class="sh-actions">
+              <button type="button" class="sh-btn sh-btn--primary" (click)="sendState.set('partial')">
+                <sh-icon name="send" />Review and send
+              </button>
+            </div>
+          }
+          @case ('partial') {
+            <div class="sh-notice sh-notice--error" role="alert">
+              <sh-icon name="alert" />
+              <div>
+                <strong>1 reminder didn't send</strong>
+                Megan Lee: not sent. Try again or copy it. The rest were sent.
+                <div class="sh-actions retry">
+                  <button type="button" class="sh-btn sh-btn--secondary" (click)="sendState.set('sent')">
+                    <sh-icon name="retry" />Try again
+                  </button>
+                  <button type="button" class="sh-btn sh-btn--secondary"
+                          (click)="copySample('Hi Megan, a friendly reminder that you are on check-in this Sunday at 9:30.')">
+                    <sh-icon name="copy" />Copy reminder
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+          @case ('sent') {
+            <p class="sh-tag sh-tag--ok"><sh-icon name="check" />All sent</p>
+          }
+        }
+      </article>
+    }
+
+    @for (p of memorySuggestions(); track p.id) {
+      <article class="sh-card sh-card--suggest">
+        <div class="sh-sugg-label"><span class="sh-spark"><sh-icon name="spark" /></span>Memory suggestion</div>
+        <p>{{ p.payload['text'] }} Remember this?</p>
+        <div class="sh-actions">
+          <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === p.id" (click)="remember(p)">Remember</button>
+          <button type="button" class="sh-btn sh-btn--quiet" [disabled]="busy() === p.id" (click)="notNow(p)">Not now</button>
+        </div>
+      </article>
+    }
+
+    <!-- SAMPLE: people not connected to chat yet (later milestone) -->
+    @if (showSamples()) {
+      <div class="sh-notice sh-notice--info">
+        <sh-icon name="link" />
+        <div>
+          <strong>2 people aren't connected yet</strong>
+          They can't get chat messages. Message them yourself.
+          <div class="sh-actions retry">
+            <button type="button" class="sh-btn sh-btn--secondary"
+                    (click)="copySample('Hi, a friendly reminder that you are serving with Kids this Sunday at 9:30.')">
+              <sh-icon name="copy" />Copy reminder
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+  </section>
+</div>

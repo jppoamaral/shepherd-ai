@@ -8,9 +8,14 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://shepherd:shepherd@localhost:5432/shepherd"
 
-    # Browser origins allowed to call the API (the Angular dev server by default).
+    # Browser origins allowed to call the API (Shepherd's Angular dev server runs on 4300).
     # In .env: CORS_ORIGINS=["http://localhost:4200","https://app.example.org"]
-    cors_origins: list[str] = ["http://localhost:4200", "http://127.0.0.1:4200"]
+    cors_origins: list[str] = [
+        "http://localhost:4300",
+        "http://127.0.0.1:4300",
+        "http://localhost:4200",
+        "http://127.0.0.1:4200",
+    ]
 
     # How many weeks ahead the worker keeps concrete Gathering rows generated.
     gathering_horizon_weeks: int = 12
