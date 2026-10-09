@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db.models import Church, OnboardingSession, Person
 from app.domain.enums import OnboardingStatus, ProfileStatus
 from app.domain.profile import ChurchProfileDraft
@@ -30,7 +31,12 @@ def start_onboarding(session: Session, church_name: str, admin_name: str) -> Sta
     name = church_name.strip()
     if session.scalar(select(Church.id).where(Church.name == name)) is not None:
         raise ApprovalError(f"a church called {name!r} already exists")
-    church = Church(name=name, timezone=PLACEHOLDER_TIMEZONE, profile_status=ProfileStatus.DRAFT)
+    church = Church(
+        name=name,
+        timezone=PLACEHOLDER_TIMEZONE,
+        profile_status=ProfileStatus.DRAFT,
+        channel=get_settings().default_channel,
+    )
     session.add(church)
     session.flush()
     admin = Person(church_id=church.id, name=admin_name.strip(), is_admin=True, opted_in=True)

@@ -70,6 +70,7 @@ def load_church(session: Session, spec: ChurchSeed, today: date) -> tuple[Church
         member_count=spec.member_count,
         absence_threshold_weeks=spec.absence_threshold_weeks,
         warning_routing=spec.warning_routing,
+        channel=spec.channel,
     )
     session.add(church)
     session.flush()

@@ -5,6 +5,7 @@ Only ApprovalService may import this module. Agents must not;
 """
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -17,14 +18,32 @@ class MessageWriter:
         self.session = session
         self.church_id = church_id
 
-    def create(self, *, person_id: uuid.UUID, channel: str, body: str) -> Message:
+    def create(
+        self,
+        *,
+        person_id: uuid.UUID,
+        channel: str,
+        body: str,
+        kind: str = "message",
+        assignment_id: uuid.UUID | None = None,
+        buttons: list[str] | None = None,
+    ) -> Message:
         message = Message(
             church_id=self.church_id,
             person_id=person_id,
             channel=channel,
             body=body,
             status=MessageStatus.APPROVED,
+            kind=kind,
+            assignment_id=assignment_id,
+            buttons=buttons or [],
         )
         self.session.add(message)
         self.session.flush()
         return message
+
+    def mark(self, message: Message, *, ok: bool, error: str | None = None) -> None:
+        message.status = MessageStatus.SENT if ok else MessageStatus.FAILED
+        message.sent_at = datetime.now(UTC) if ok else None
+        message.error = error
+        self.session.flush()

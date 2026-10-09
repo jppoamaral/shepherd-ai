@@ -78,7 +78,7 @@ class Message(TenantMixin, CreatedAtMixin, Base):
     """A 1:1 message to one person. Sent only after approval (rule 1)."""
 
     __tablename__ = "messages"
-    __extra_args__ = (tenant_fk("person_id", "people"),)
+    __extra_args__ = (tenant_fk("person_id", "people"), tenant_fk("assignment_id", "assignments"))
 
     person_id: Mapped[uuid.UUID]
     channel: Mapped[str] = mapped_column(sa.String(32))
@@ -88,3 +88,7 @@ class Message(TenantMixin, CreatedAtMixin, Base):
     )
     sent_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(sa.Text)
+    kind: Mapped[str] = mapped_column(sa.String(32), server_default="message")  # or "reminder"
+    # A reminder's assignment, so "1" or "2" in reply answers the right place.
+    assignment_id: Mapped[uuid.UUID | None]
+    buttons: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default="[]")

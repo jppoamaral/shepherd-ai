@@ -33,6 +33,7 @@ from app.domain.schemas import (
     BriefingGathering,
     BriefingItem,
     BriefingOut,
+    GapFill,
     LeaderMinistry,
     LeaderSummary,
     RosterGathering,
@@ -41,6 +42,7 @@ from app.domain.schemas import (
     RosterRole,
 )
 from app.services.checks_runner import run_checks
+from app.services.huddle_replacement import free_candidates
 
 BRIEFING_DAYS = 7
 
@@ -126,6 +128,9 @@ def briefing(
                 ministries=[ministry_names[m] for m in ministry_ids],
                 people=[people[p] for p in f.person_ids],
                 can_huddle=f.type is FindingType.OVERLAP and bool(others),
+                fill=_fill(session, church_id, f, mine)
+                if f.type is FindingType.BELOW_MINIMUM
+                else None,
             )
         )
 
@@ -160,6 +165,37 @@ KIND_ORDER = {FindingType.OVERLAP: 0, FindingType.LOAD: 1, FindingType.BELOW_MIN
 def _order(f: Finding) -> tuple[int, int, str]:
     severity = 0 if f.details.get("severity") == "warning" else 1
     return severity, KIND_ORDER.get(f.type, 9), f.details.get("on", "")
+
+
+def _fill(
+    session: Session, church_id: uuid.UUID, finding: Finding, mine: dict[uuid.UUID, MinistryLeader]
+) -> GapFill | None:
+    """One free, not-blocked-out team member for an open slot in the leader's own ministry."""
+    ministry_ids = [uuid.UUID(m) for m in finding.details.get("ministry_ids", [])]
+    if len(ministry_ids) != 1 or ministry_ids[0] not in mine or finding.gathering_id is None:
+        return None
+    gathering = session.get_one(Gathering, finding.gathering_id)
+    role_id = uuid.UUID(finding.details["role_id"])
+    free = free_candidates(
+        session,
+        church_id,
+        ministry_ids[0],
+        role_id,
+        uuid.UUID(int=0),
+        gathering.start_at,
+        gathering.end_at,
+    )
+    if not free:
+        return None
+    return GapFill(
+        ministry_id=ministry_ids[0],
+        gathering_id=gathering.id,
+        role_id=role_id,
+        role=finding.details["role"],
+        person_id=free[0].person_id,
+        name=free[0].name,
+        experience=free[0].experience,
+    )
 
 
 def _ministry_gatherings(

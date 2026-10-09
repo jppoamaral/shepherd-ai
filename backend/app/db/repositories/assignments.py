@@ -60,3 +60,11 @@ class AssignmentWriter:
         assignment.source = source
         self.session.flush()
         return assignment
+
+    def set_status(self, assignment: Assignment, status: AssignmentStatus) -> Assignment:
+        """A volunteer's own answer: confirmed or declined."""
+        if assignment.church_id != self.church_id:
+            raise ValueError("assignment belongs to another church")
+        assignment.status = status
+        self.session.flush()
+        return assignment

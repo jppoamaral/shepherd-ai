@@ -19,6 +19,9 @@ class Church(CreatedAtMixin, Base):
     name: Mapped[str] = mapped_column(sa.String(200), unique=True)
     timezone: Mapped[str] = mapped_column(sa.String(64))  # IANA name, e.g. "America/Chicago"
     language: Mapped[str] = mapped_column(sa.String(16), default="en")
+    # How approved 1:1 messages leave Shepherd: "copy_paste", "simulator" (demo) or, later,
+    # "telegram". New churches get the DEFAULT_CHANNEL setting.
+    channel: Mapped[str] = mapped_column(sa.String(32), server_default="copy_paste")
     profile_status: Mapped[ProfileStatus] = mapped_column(
         enum_column(ProfileStatus), default=ProfileStatus.DRAFT
     )

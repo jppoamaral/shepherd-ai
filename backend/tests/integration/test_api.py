@@ -34,7 +34,7 @@ def test_ministries_include_roles_minimums_and_leaders(
     kids = ministries["Kids"]
     assert {r["name"] for r in kids["roles"]} == {"Lead Teacher", "Helper", "Check-in"}
     helper = next(r for r in kids["roles"] if r["name"] == "Helper")
-    assert {m["minimum"] for m in helper["minimums"]} == {2}
+    assert {m["minimum"] for m in helper["minimums"]} == {3, 2}  # 3 at the busy 9:30
     assert kids["leaders"] == [
         {
             "person_id": kids["leaders"][0]["person_id"],
@@ -111,6 +111,12 @@ def test_only_known_endpoints_write(client: TestClient) -> None:
         ("post", "/churches/{church_id}/huddles/{huddle_id}/undo-replacement"),
         # Ask Shepherd answers questions; it only reads (drafts come back to copy).
         ("post", "/churches/{church_id}/ministries/{ministry_id}/ask"),
+        # A volunteer's chat message: her answers are proposals approved by her reply.
+        ("post", "/churches/{church_id}/people/{person_id}/chat"),
+        # Drafting reminders only creates a proposal; sending needs a leader's approval.
+        ("post", "/churches/{church_id}/ministries/{ministry_id}/reminders/draft"),
+        # Dismissing a one-time notice deletes it; it was never part of the record.
+        ("delete", "/churches/{church_id}/notices/{notice_id}"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/memory/notes"),
         ("delete", "/churches/{church_id}/ministries/{ministry_id}/memory/{memory_id}"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/suggestion/approve"),

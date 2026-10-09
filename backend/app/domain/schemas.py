@@ -218,6 +218,18 @@ class BriefingItem(BaseModel):
     people: list[str]
     # A double booking shared with another ministry's leader: offer "Find a time to talk".
     can_huddle: bool
+    # An open slot: who on the team is free to fill it (the leader decides).
+    fill: "GapFill | None" = None
+
+
+class GapFill(BaseModel):
+    ministry_id: uuid.UUID
+    gathering_id: uuid.UUID
+    role_id: uuid.UUID
+    role: str
+    person_id: uuid.UUID
+    name: str
+    experience: Experience
 
 
 class BriefingGathering(BaseModel):
@@ -496,3 +508,48 @@ class AskStart(BaseModel):
     ministry: str
     greeting: str
     suggestions: list[AskAction]
+
+
+# ---------------------------------------------------------------------------
+# Volunteer chat (the demo simulator now, Telegram later) and leader notices
+# ---------------------------------------------------------------------------
+
+
+class ChatMessageOut(BaseModel):
+    """Shepherd's side of one person's chat: approved messages and the bot's replies."""
+
+    id: uuid.UUID
+    body: str
+    buttons: list[str]
+    at: datetime
+    approved: bool  # true for a message a leader approved; false for a bot reply
+
+
+class ChatThreadOut(BaseModel):
+    person_id: uuid.UUID
+    name: str
+    church: str
+    channel: str
+    messages: list[ChatMessageOut]
+
+
+class ChatReplyOut(BaseModel):
+    replies: list[ChatMessageOut]
+
+
+class VolunteerOut(BaseModel):
+    person_id: uuid.UUID
+    name: str
+    ministries: list[str]
+    connected: bool
+    stopped: bool
+
+
+class NoticeOut(BaseModel):
+    id: uuid.UUID
+    ministry_id: uuid.UUID
+    about: str
+    kind: str
+    text: str
+    note: str | None  # the volunteer's own words, shown once
+    at: datetime

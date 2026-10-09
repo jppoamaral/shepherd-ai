@@ -122,3 +122,5 @@ class ChurchSeed:
     # (ministry, gathering type key): fill the rest of that roster in the demo week from
     # the team, so the demo's warnings are the seeded stories rather than empty slots.
     fill_rosters: list[tuple[str, str]] = field(default_factory=list)
+    # How approved messages leave Shepherd for this church ("simulator" = the demo chat).
+    channel: str = "copy_paste"

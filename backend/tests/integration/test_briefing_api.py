@@ -53,7 +53,7 @@ def test_sarah_sees_annas_double_booking_and_overload_but_not_hannahs(
     assert any(t.startswith("Anna Parker is serving 4 times the week of 11 Oct") for t in texts)
     assert not any("Hannah" in t for t in texts)
     kids_930 = next(g for g in brief["gatherings"] if g["name"] == "Sunday 9:30 Service")
-    assert (kids_930["ministry"], kids_930["needed"], kids_930["filled"]) == ("Kids", 4, 5)
+    assert (kids_930["ministry"], kids_930["needed"], kids_930["filled"]) == ("Kids", 5, 5)
 
 
 def test_david_sees_both_double_bookings_first(client: TestClient, grace: dict) -> None:

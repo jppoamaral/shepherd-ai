@@ -3,6 +3,7 @@
 Church volunteer coordination app. Shepherd helps ministry leaders lead the people who serve: one record of who serves where across all ministries, roster suggestions (training and veteran paths), early warnings to the right leader, leader memory (with consent), and a conflict huddle between two leaders.
 
 **Core rule: Shepherd suggests, a person decides.** Nothing is recorded or sent until a leader approves.
+Clarified for volunteer chat: anything Shepherd *starts* (reminders, nudges) needs a leader's approval. The bot's direct replies to a volunteer's own message (thanks, one clarifying question, reading dates back) go out at once in fixed wording and never start a new ask. A volunteer's answer about herself (yes, can't make it, away dates, stop/start) is a proposal her own reply approves, applied by ApprovalService.
 
 **Source of truth: `docs/PROJECT_BRIEF.md`.** Read it before starting any milestone. If a request conflicts with it, ask. Architecture decisions live in `docs/adr/`.
 
@@ -16,7 +17,7 @@ Church volunteer coordination app. Shepherd helps ministry leaders lead the peop
 - **Frontend:** Angular 22 in `/frontend` (standalone components, signals), styled only with the Claude Design tokens and `sh-*` classes in `frontend/design-system/` (read its `USAGE.md` and `screens/README.md` first). API types are generated from the backend's OpenAPI (`npm run api:types`). Runs on port 4300.
 - **Tooling:** uv (deps), ruff (lint + format), mypy (strict on `app/domain` and `app/services`), pytest
 - **Local first:** docker-compose for Postgres, API and worker; settings in `.env` (see `.env.example`). Azure deployment comes later; add no cloud resources yet.
-- **Channels:** `ChannelAdapter` interface + `CopyPasteChannel` (renders approved messages as a list). Telegram comes later.
+- **Channels:** `ChannelAdapter` interface + `CopyPasteChannel` (renders approved messages as a list) + `SimulatorChannel` (the demo volunteer chat, standing in for Telegram). Each church picks one (`churches.channel`; `DEFAULT_CHANNEL` / `CHANNEL_BY_CHURCH` in `.env`); the seeds put Grace Community on the simulator. Inbound messages go through `services/inbound.py`, which Telegram will reuse. Telegram comes later.
 
 ## Architecture rules (non-negotiable; enforce in code and tests)
 
@@ -120,6 +121,7 @@ Set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` (
 - **Alembic autogenerate and enums:** enum columns use `enum_column()` (text + CHECK, no native PG enums). Autogenerate emits each enum's CHECK twice, so the upgrade fails with DuplicateObject. After every autogenerate, run `uv run python migrations/fix_enum_checks.py migrations/versions/<new file>.py`. `test_migrations.py` fails if models and migrations drift.
 - **Datetimes:** keep instants in UTC and convert to the church's zone only for display. Python compares and subtracts two datetimes that share a tzinfo by wall clock, ignoring DST offsets.
 - **No auth yet:** endpoints are open and scoped only by `church_id` in the path. This is OK for synthetic local data; auth must land before any real church data.
+- **Personal reasons:** a volunteer's reason for not serving is passed to her leader once as a `LeaderNotice` (deleted on dismiss, never audited) and stored nowhere else. Her own chat messages are never stored; the simulator keeps them in the browser, as Telegram would.
 - **Seeds are fixtures:** they write the record directly, standing in for an approved onboarding profile and roster history. App code must still go through proposals and ApprovalService.
 
 ## Working agreements

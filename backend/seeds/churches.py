@@ -47,6 +47,8 @@ GRACE_SUN = ("sun_0930", "sun_1100")
 def grace_community() -> ChurchSeed:
     return ChurchSeed(
         name="Grace Community",
+        # Grace demos the volunteer side: approved reminders land in the demo chat.
+        channel="simulator",
         timezone="America/Chicago",
         member_count=150,
         absence_threshold_weeks=6,
@@ -85,7 +87,8 @@ def grace_community() -> ChurchSeed:
                 weight=1.0,
                 roles=[
                     RoleSeed("Lead Teacher", _sundays(*GRACE_SUN, n=1)),
-                    RoleSeed("Helper", _sundays(*GRACE_SUN, n=2)),
+                    # The 9:30 is the busy service: losing one of its three helpers opens a gap.
+                    RoleSeed("Helper", {"sun_0930": 3, "sun_1100": 2}),
                     RoleSeed("Check-in", _sundays(*GRACE_SUN, n=1)),
                 ],
                 leaders=[LeaderSeed("sarah", can_schedule=True, can_approve=True)],

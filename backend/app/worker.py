@@ -1,7 +1,8 @@
 """The agent worker: one process running APScheduler.
 
-A nightly job keeps concrete gatherings generated ahead for every church and
-re-runs the deterministic checks for the next four weeks.
+A nightly job keeps concrete gatherings generated ahead for every church, re-runs the
+deterministic checks for the next four weeks, and drafts the coming week's reminders
+for leaders to approve.
 """
 
 import logging
@@ -11,10 +12,12 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import select
 
 from app.config import get_settings
-from app.db.models import Church
+from app.db.models import Church, Ministry
 from app.db.session import get_sessionmaker
+from app.services.briefing import church_today
 from app.services.checks_runner import run_checks
 from app.services.gatherings import ensure_gatherings
+from app.services.reminders import draft_reminders
 
 log = logging.getLogger("shepherd.worker")
 
@@ -27,11 +30,23 @@ def extend_gatherings() -> None:
             start = date.today() - timedelta(days=1)
             created = ensure_gatherings(session, church.id, start, start + horizon)
             findings = run_checks(session, church.id, start, start + timedelta(weeks=4))
+            # Reminders for the coming week, drafted for leaders to approve (never sent here).
+            drafted = sum(
+                len(
+                    draft_reminders(
+                        session, church.id, ministry_id, church_today(session, church.id)
+                    )
+                )
+                for ministry_id in session.scalars(
+                    select(Ministry.id).where(Ministry.church_id == church.id)
+                )
+            )
             log.info(
-                "church=%s gatherings_created=%d open_findings=%d",
+                "church=%s gatherings_created=%d open_findings=%d reminders_drafted=%d",
                 church.name,
                 created,
                 len(findings),
+                drafted,
             )
         session.commit()
 

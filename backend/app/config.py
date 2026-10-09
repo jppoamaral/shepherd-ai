@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     # How many weeks ahead the worker keeps concrete Gathering rows generated.
     gathering_horizon_weeks: int = 12
 
+    # How approved 1:1 messages leave Shepherd: "copy_paste" or "simulator" (the demo chat;
+    # Telegram later). Each church keeps its own choice (churches.channel, set by the seeds);
+    # DEFAULT_CHANNEL is used for new churches, and CHANNEL_BY_CHURCH overrides by church
+    # name, e.g. CHANNEL_BY_CHURCH={"Grace Community":"copy_paste"}.
+    default_channel: str = "copy_paste"
+    channel_by_church: dict[str, str] = {}
+
     azure_openai_endpoint: str = ""
     azure_openai_api_key: str = ""
     azure_openai_api_version: str = "2024-10-21"

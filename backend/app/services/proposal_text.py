@@ -53,6 +53,16 @@ def _text(p: ProposalOut, names: "_Names") -> dict[str, str]:
             "title": f"Should I remember this? ({ministry})",
             "summary": f"“{payload['text']}”{about}",
         }
+    if p.type == "reminders":
+        messages = payload.get("messages", [])
+        n = len(messages)
+        return {
+            "title": f"{n} reminder{'s' if n != 1 else ''} ready for "
+            f"{names.gathering(payload['gathering_id'])}",
+            "summary": "\n\n".join(
+                f"To {names.person(m['person_id'])}: {m['body']}" for m in messages
+            ),
+        }
     return {"title": p.type.replace("_", " ").capitalize(), "summary": ""}
 
 
