@@ -2,9 +2,31 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { ApiService } from '../../api/api.service';
 import type { Roster, Suggestion, SuggestionLine } from '../../api/types';
 import { Session } from '../../core/session';
-import { churchToday, dayTime, monthDay } from '../../core/format';
+import { churchToday, monthDay } from '../../core/format';
 import { ExperienceBadge } from '../../ui/experience-badge';
 import { Icon } from '../../ui/icon';
+
+/** Lines that share one gathering, shown under a single header. */
+interface Group<T> {
+  gatheringId: string;
+  gathering: string;
+  startAt: string;
+  items: T[];
+}
+
+function byGathering<T>(items: T[], line: (item: T) => SuggestionLine): Group<T>[] {
+  const groups: Group<T>[] = [];
+  for (const item of items) {
+    const l = line(item);
+    let g = groups.find((x) => x.gatheringId === l.gathering_id);
+    if (!g) {
+      g = { gatheringId: l.gathering_id, gathering: l.gathering, startAt: l.start_at, items: [] };
+      groups.push(g);
+    }
+    g.items.push(item);
+  }
+  return groups.sort((a, b) => a.startAt.localeCompare(b.startAt));
+}
 
 interface EditLine {
   line: SuggestionLine;
@@ -39,7 +61,6 @@ export class RostersPage {
   protected readonly error = signal('');
 
   protected readonly monthDay = monthDay;
-  protected readonly dayTime = dayTime;
   protected readonly flagText = FLAG_TEXT;
 
   protected readonly title = computed(() => {
@@ -48,6 +69,13 @@ export class RostersPage {
     const month = new Date(`${s.start}T12:00:00`).toLocaleString('en-US', { month: 'long' });
     return `${month} rosters`;
   });
+  protected readonly suggestionGroups = computed(() =>
+    byGathering(this.suggestion()?.lines ?? [], (l) => l),
+  );
+  /** Edit lines grouped by gathering, each keeping its index for swap(). */
+  protected readonly editGroups = computed(() =>
+    byGathering(this.edits().map((e, index) => ({ e, index })), (x) => x.e.line),
+  );
   protected readonly toApprove = computed(() =>
     this.edits().filter((e) => e.personId !== null),
   );

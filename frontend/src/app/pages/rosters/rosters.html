@@ -33,10 +33,11 @@
           <p>Your roster already meets every minimum for the coming weeks.</p>
         </div>
       } @else {
+        @for (g of suggestionGroups(); track g.gatheringId) {
+        <h3 class="sh-group">{{ g.gathering }} · {{ monthDay(g.startAt) }}</h3>
         <div class="sh-roster">
-          @for (line of suggestion()!.lines; track $index) {
-            <div class="sh-row" [class.sh-row--empty]="!line.person_id">
-              <div class="sh-date">{{ monthDay(line.start_at) }}<small>{{ dayTime(line.start_at) }}</small></div>
+          @for (line of g.items; track $index) {
+            <div class="sh-row sh-row--plain" [class.sh-row--empty]="!line.person_id">
               <div>
                 <div class="sh-who">
                   <span class="sh-role">{{ line.role }}</span>
@@ -55,6 +56,7 @@
             </div>
           }
         </div>
+        }
         <button type="button" class="sh-btn sh-btn--primary sh-btn--block" (click)="choose()">Choose this roster</button>
       }
     </section>
@@ -63,10 +65,13 @@
       <span class="sh-tag sh-tag--attn"><sh-icon name="pencil" />Editing · not approved yet</span>
       <h2 id="edit-title">Your roster</h2>
       <p class="sh-muted">Swap anyone for another free team member, or leave a place open.</p>
+      @for (g of editGroups(); track g.gatheringId) {
+      <h3 class="sh-group">{{ g.gathering }} · {{ monthDay(g.startAt) }}</h3>
       <div class="sh-roster">
-        @for (e of edits(); track $index; let i = $index) {
-          <div class="sh-row" [class.sh-row--empty]="!e.personId">
-            <div class="sh-date">{{ monthDay(e.line.start_at) }}<small>{{ dayTime(e.line.start_at) }}</small></div>
+        @for (x of g.items; track x.index) {
+          @let e = x.e;
+          @let i = x.index;
+          <div class="sh-row sh-row--plain" [class.sh-row--empty]="!e.personId">
             <div>
               <div class="sh-who">
                 <span class="sh-role">{{ e.line.role }}</span>
@@ -90,6 +95,7 @@
           </div>
         }
       </div>
+      }
       <div class="sh-notice sh-notice--info">
         <sh-icon name="lock" />
         <span>Approving records this roster. Reminders aren't sent until you approve them too.</span>
@@ -114,8 +120,7 @@
         <div class="sh-roster">
           @for (role of g.roles; track role.role_id) {
             @for (p of role.people; track p.assignment_id) {
-              <div class="sh-row">
-                <div class="sh-date">{{ monthDay(g.start_at) }}<small>{{ dayTime(g.start_at) }}</small></div>
+              <div class="sh-row sh-row--plain">
                 <div>
                   <div class="sh-who">
                     <span class="sh-role">{{ role.role }}</span>
@@ -129,8 +134,7 @@
               </div>
             }
             @if (role.missing > 0) {
-              <div class="sh-row sh-row--empty">
-                <div class="sh-date">{{ monthDay(g.start_at) }}<small>{{ dayTime(g.start_at) }}</small></div>
+              <div class="sh-row sh-row--plain sh-row--empty">
                 <div>
                   <div class="sh-who"><span class="sh-role">{{ role.role }}</span><b>Open</b></div>
                   <div class="sh-flag"><sh-icon name="alert" /><span>{{ role.missing }} more needed.</span></div>
