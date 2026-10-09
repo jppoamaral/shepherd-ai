@@ -25,7 +25,7 @@ PASTED = "KIDS OCT\n10/11 9:30 helpers: Rachel, Anna P. ... (Megan out - surgery
 def entry(
     names: list[str],
     *,
-    day: str = "2026-10-11",
+    day: str = "2026-10-25",  # the demo seed fills 10/11; keep these tests on clear dates
     at: str | None = "09:30",
     role: str = "Helper",
     both: bool = False,
@@ -96,6 +96,10 @@ def submit(steward: StewardAgent, llm: FakeLLM, kids_id: uuid.UUID, sarah: Perso
     return steward.intake_schedule(kids_id, sarah.id, PASTED)
 
 
+def kids_assignment_ids(session: Session, kids_id: uuid.UUID) -> set[uuid.UUID]:
+    return set(session.scalars(select(Assignment.id).where(Assignment.ministry_id == kids_id)))
+
+
 def choice_for(question, name: str) -> str:  # type: ignore[no-untyped-def]
     return next(c.id for c in question.choices if c.label.startswith(name))
 
@@ -142,6 +146,7 @@ def test_answering_everything_proposes_and_approval_records_the_roster(
 ) -> None:
     people_before = session.scalar(select(func.count()).select_from(Person))
     members_before = session.scalar(select(func.count()).select_from(Membership))
+    seeded = kids_assignment_ids(session, kids_id)
     view = submit(steward, llm, kids_id, sarah)
     for question in list(view.questions):
         pick = {"Anna P.": "Anna Parker", "Annie": "Anna Peterson", "chk-in": "Check-in"}[
@@ -153,18 +158,15 @@ def test_answering_everything_proposes_and_approval_records_the_roster(
     proposal = session.get_one(Proposal, view.proposal_id)
     assert (proposal.type, proposal.created_by_agent) == ("leader_roster", "steward")
     # Nothing is recorded before approval.
-    assert (
-        session.scalar(
-            select(func.count()).where(
-                Assignment.roster_suggestion_id.is_(None), Assignment.ministry_id == kids_id
-            )
-        )
-        == 0
-    )
+    assert kids_assignment_ids(session, kids_id) == seeded
 
     ApprovalService(session).approve(grace_id, proposal.id, sarah.id)
 
-    rows = session.scalars(select(Assignment).where(Assignment.ministry_id == kids_id)).all()
+    rows = [
+        a
+        for a in session.scalars(select(Assignment).where(Assignment.ministry_id == kids_id))
+        if a.id not in seeded
+    ]
     assert len(rows) == 7  # Rachel, Anna Parker, Emily, Anna Peterson, Megan, Sarah x2
     assert {(r.status, r.source) for r in rows} == {
         (AssignmentStatus.APPROVED, AssignmentSource.LEADER)
@@ -191,6 +193,7 @@ def test_leaving_a_name_out_records_nothing_for_it(
     kids_id: uuid.UUID,
     sarah: Person,
 ) -> None:
+    seeded = kids_assignment_ids(session, kids_id)
     llm.queue(ParsedSchedule(entries=[entry(["Rachel", "Jessie"])], clarifying_question=None))
     llm.queue(
         NicknameSuggestions(
@@ -203,11 +206,11 @@ def test_leaving_a_name_out_records_nothing_for_it(
     view = steward.answer(view.id, sarah.id, question.id, LEAVE_OUT)
     assert view.proposal_id is not None
     ApprovalService(session).approve(grace_id, view.proposal_id, sarah.id)
-    names = session.scalars(
-        select(Person.name)
-        .join(Assignment, Assignment.person_id == Person.id)
-        .where(Assignment.ministry_id == kids_id)
-    ).all()
+    names = [
+        session.get_one(Person, a.person_id).name
+        for a in session.scalars(select(Assignment).where(Assignment.ministry_id == kids_id))
+        if a.id not in seeded
+    ]
     assert names == ["Rachel Turner"]
 
 

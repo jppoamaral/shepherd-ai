@@ -208,7 +208,10 @@ def load_church(session: Session, spec: ChurchSeed, today: date) -> tuple[Church
 
     writer = AssignmentWriter(session, cid)
     tz = ZoneInfo(spec.timezone)
-    now_local = datetime.combine(today, datetime.min.time(), tzinfo=tz)
+    # The demo week starts at the first upcoming Sunday, so a Sunday and the
+    # Wednesday after it fall in the same (Sunday-to-Saturday) church week.
+    demo_sunday = today + timedelta(days=(6 - today.weekday()) % 7)
+    now_local = datetime.combine(demo_sunday, datetime.min.time(), tzinfo=tz)
     for a in spec.assignments:
         gathering_id = session.scalar(
             select(Gathering.id)

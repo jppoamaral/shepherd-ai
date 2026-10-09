@@ -195,10 +195,23 @@ def grace_community() -> ChurchSeed:
                 ],
             ),
         ],
-        # Hannah sings at prayer night and runs sound at youth, which overlap.
+        # The demo week (first upcoming Sunday to Saturday):
+        # - Hannah sings at prayer night and runs sound at youth, which overlap (midweek clash).
+        # - Anna Parker is on Kids and Worship at the same 9:30 service (double booking across
+        #   ministries) and serves 4 times in the week, above her preferred 2 and Grace's limit.
         assignments=[
             AssignmentSeed("hannah", WORSHIP, "Vocals", "wed_prayer"),
             AssignmentSeed("hannah", MEDIA, "Sound", "wed_youth"),
+            AssignmentSeed("anna_parker", KIDS, "Helper", "sun_0930"),
+            AssignmentSeed("anna_parker", WORSHIP, "Keys", "sun_0930"),
+            AssignmentSeed("anna_parker", WORSHIP, "Keys", "sun_1100"),
+            AssignmentSeed("anna_parker", WORSHIP, "Keys", "wed_prayer"),
+            AssignmentSeed("emily", KIDS, "Helper", "sun_0930"),
+            AssignmentSeed("rachel", KIDS, "Helper", "sun_0930"),
+            AssignmentSeed("sarah", KIDS, "Lead Teacher", "sun_0930"),
+            AssignmentSeed("megan", KIDS, "Check-in", "sun_0930"),
+            AssignmentSeed("david", WORSHIP, "Worship Leader", "sun_0930"),
+            AssignmentSeed("david", WORSHIP, "Worship Leader", "sun_1100"),
         ],
         generated_volunteers=32,
         generated_preferences=[(1, Period.WEEK), (2, Period.MONTH), (3, Period.MONTH)],
