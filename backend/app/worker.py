@@ -1,7 +1,7 @@
 """The agent worker: one process running APScheduler.
 
-Milestone 1 has a single job that keeps concrete gatherings generated ahead for
-every church. Agents (steward, weekly check, ...) are scheduled here later.
+A nightly job keeps concrete gatherings generated ahead for every church and
+re-runs the deterministic checks for the next four weeks.
 """
 
 import logging
@@ -13,6 +13,7 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.db.models import Church
 from app.db.session import get_sessionmaker
+from app.services.checks_runner import run_checks
 from app.services.gatherings import ensure_gatherings
 
 log = logging.getLogger("shepherd.worker")
@@ -25,7 +26,13 @@ def extend_gatherings() -> None:
             # Start a day early so no church's "today" is missed across time zones.
             start = date.today() - timedelta(days=1)
             created = ensure_gatherings(session, church.id, start, start + horizon)
-            log.info("church=%s gatherings_created=%d", church.name, created)
+            findings = run_checks(session, church.id, start, start + timedelta(weeks=4))
+            log.info(
+                "church=%s gatherings_created=%d open_findings=%d",
+                church.name,
+                created,
+                len(findings),
+            )
         session.commit()
 
 

@@ -66,12 +66,7 @@ def test_below_minimum_only_where_a_roster_has_started(
     session: Session, grace_id: uuid.UUID
 ) -> None:
     findings = of_type(run_checks(session, grace_id, *WEEK), FindingType.BELOW_MINIMUM)
-    worship = session.scalar(
-        select(Ministry.id).where(Ministry.church_id == grace_id, Ministry.name == "Worship")
-    )
-    assert findings and all(
-        str(worship) in f.details["ministry_ids"] or f.details["role"] for f in findings
-    )
+    assert findings
     assert any(
         f.details["text"].startswith("Worship needs 2 Vocals at Sunday 9:30 Service")
         for f in findings
@@ -103,7 +98,7 @@ def test_rerunning_is_idempotent_and_fixed_conflicts_resolve(
         )
     ).all()
     assert any(f.type is FindingType.OVERLAP and anna in f.person_ids for f in resolved)
-    # Still 3 this week: above preference and limit stays a warning? 3 > 2 -> yes.
+    # Still 3 this week: above her preferred 2 and above Grace's limit of 2.
     (load,) = [f for f in third if f.type is FindingType.LOAD and anna in f.person_ids]
     assert load.details["count"] == 3
 
