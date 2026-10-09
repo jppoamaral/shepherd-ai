@@ -309,3 +309,14 @@ def test_without_the_model_free_text_gets_the_numbered_fallback(
     assert say(client, grace, "Anna Parker", "hmm let me see about that") == [
         "Sorry, I didn't catch that. Reply 1 = yes, 2 = can't make it."
     ]
+
+
+def test_a_tapped_button_sends_its_label_and_means_its_number(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    send_kids_reminders(client, grace)
+    say(client, grace, "Anna Parker", "not sure, it depends")
+    assert say(client, grace, "Anna Parker", "Can't commit") == [
+        "Okay, I've let your leader know you can't commit for Oct 11."
+    ]
+    assert annas_kids_place(session, grace).status is AssignmentStatus.APPROVED

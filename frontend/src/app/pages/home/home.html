@@ -29,6 +29,23 @@
   <section class="section" aria-labelledby="this-week">
     <h2 class="section-title" id="this-week">This week</h2>
 
+    @for (n of myNotices(); track n.id) {
+      <article class="sh-card" aria-labelledby="notice-{{ n.id }}">
+        <div class="sh-brief-head">
+          <span class="sh-tag sh-tag--attn"><sh-icon name="chat" />From {{ first(n.about) }}'s chat</span>
+          <span class="sh-cap">{{ n.kind === 'declined' ? 'Needs you' : 'Good to know' }}</span>
+        </div>
+        <h3 [id]="'notice-' + n.id">{{ n.text }}</h3>
+        @if (n.note) {
+          <div class="sh-bubble">“{{ n.note }}”</div>
+          <p class="sh-note"><sh-icon name="lock" />{{ first(n.about) }} asked Shepherd to pass this on. It isn't kept: dismissing deletes it.</p>
+        }
+        <div class="sh-actions">
+          <button type="button" class="sh-btn sh-btn--secondary" (click)="dismiss(n)">Dismiss</button>
+        </div>
+      </article>
+    }
+
     @for (item of items(); track item.finding_id) {
       @switch (kind(item)) {
         @case ('overlap') {
@@ -64,7 +81,16 @@
               <span class="sh-cap">Needs you</span>
             </div>
             <h3>{{ item.text }}</h3>
+            @if (item.fill; as f) {
+              <p>{{ f.name }} ({{ experienceLabel[f.experience] }}) is free then and not blocked out.</p>
+            }
             <div class="sh-actions">
+              @if (item.fill; as f) {
+                <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === item.finding_id" (click)="fill(item, f)"
+                        [attr.aria-label]="'Put ' + f.name + ' in as ' + f.role">
+                  Put {{ first(f.name) }} in
+                </button>
+              }
               <a class="sh-btn sh-btn--secondary" routerLink="/rosters">See options</a>
             </div>
           </article>
@@ -124,52 +150,32 @@
       </article>
     }
 
-    <!-- SAMPLE: reminders and sending (later milestone); counts and date come from the real roster. -->
-    @if (showSamples()) {
+    @for (p of reminderProposals(); track p.id) {
       <article class="sh-card">
         <div class="sh-brief-head">
           <span class="sh-tag sh-tag--soft"><sh-icon name="send" />Ready to review</span>
         </div>
-        @if (nextGathering(); as g) {
-          <h3>{{ g.filled }} reminders ready for {{ monthDay(g.start_at) }}</h3>
+        <h3>{{ p.title }}</h3>
+        @if (reviewing() === p.id) {
+          @for (block of (p.summary ?? '').split('\n\n'); track $index) {
+            <div class="sh-bubble">{{ block }}</div>
+          }
         } @else {
-          <h3>Reminders ready for Sunday</h3>
+          <div class="sh-bubble">{{ (p.summary ?? '').split('\n\n')[0] }}</div>
         }
-        <div class="sh-bubble">
-          Hi Rachel, this is {{ session.firstName() }}. You're helping with Kids on Sunday at 9:30. Reply here if anything
-          changes. Thank you for serving.
+        <div class="sh-cap">Private 1:1 messages. Nothing is sent until you approve.</div>
+        <div class="sh-actions">
+          @if (reviewing() === p.id) {
+            <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy() === p.id" (click)="sendReminders(p)">
+              <sh-icon name="send" />Send {{ count(p) }} {{ count(p) === 1 ? 'reminder' : 'reminders' }}
+            </button>
+            <button type="button" class="sh-btn sh-btn--quiet" (click)="reviewing.set(null)">Not yet</button>
+          } @else {
+            <button type="button" class="sh-btn sh-btn--primary" (click)="reviewing.set(p.id)">
+              <sh-icon name="send" />Review and send
+            </button>
+          }
         </div>
-        <div class="sh-cap">Private 1:1 messages from you. Nothing is sent until you approve.</div>
-        @switch (sendState()) {
-          @case ('ready') {
-            <div class="sh-actions">
-              <button type="button" class="sh-btn sh-btn--primary" (click)="sendState.set('partial')">
-                <sh-icon name="send" />Review and send
-              </button>
-            </div>
-          }
-          @case ('partial') {
-            <div class="sh-notice sh-notice--error" role="alert">
-              <sh-icon name="alert" />
-              <div>
-                <strong>1 reminder didn't send</strong>
-                Megan Lee: not sent. Try again or copy it. The rest were sent.
-                <div class="sh-actions retry">
-                  <button type="button" class="sh-btn sh-btn--secondary" (click)="sendState.set('sent')">
-                    <sh-icon name="retry" />Try again
-                  </button>
-                  <button type="button" class="sh-btn sh-btn--secondary"
-                          (click)="copySample('Hi Megan, a friendly reminder that you are on check-in this Sunday at 9:30.')">
-                    <sh-icon name="copy" />Copy reminder
-                  </button>
-                </div>
-              </div>
-            </div>
-          }
-          @case ('sent') {
-            <p class="sh-tag sh-tag--ok"><sh-icon name="check" />All sent</p>
-          }
-        }
       </article>
     }
 

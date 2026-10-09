@@ -24,6 +24,8 @@ Seeds are relative to today. The **demo week** starts at the first upcoming Sund
 | **No common time** | David and Tom share no window | The huddle says so and lists the nearest options |
 | **Memory** | Kids: "You always pair Emily with Rachel.", "Emily prefers the 9:30 service." Worship: "Keep the band together for a whole month." | Pending: "Should I remember this? 'Rachel is ready to lead a class.'" |
 | **A real gap** | Media's Youth roster has Sound but no Slides | Tom (Media scheduler) |
+| **Reminders** | The worker drafts one reminders proposal per ministry and service for the coming week (Kids 9:30: Anna, Emily, Rachel, Megan) | The ministry's approver, on Home ("Review and send") |
+| **Volunteer chat** | Grace sends through the demo chat simulator (`churches.channel = simulator`); Riverside uses the copy-paste list | Each volunteer, 1:1 |
 | **Someone away** | Olivia Grant, a veteran Kids helper, is blocked out on the demo Sunday (no reason is stored) | Ask Shepherd leaves her out of cover suggestions and says so |
 
 ## Demos
@@ -89,10 +91,41 @@ For a question like "what stops it from overstepping?":
    that involve Worship (Anna on Sunday, Hannah on Wednesday). Mike Harris (Media and
    Hospitality) sees only Hannah's. Ask Shepherd as David answers about Worship's team only.
 
+### Demo 4: the volunteer's side (3 minutes)
+
+Volunteers never use the app; in real life this is their Telegram chat with Shepherd. The
+simulator stands in for Telegram. Open it beside Sarah's Home: on desktop, **Show a
+volunteer's chat (demo)** at the bottom of the sidebar opens Anna's phone on the right; or
+open "See what volunteers get" on "Who's leading today?" in a second window.
+
+1. Sarah's **Home**: "4 reminders ready for Sunday 9:30 Service". **Review and send** shows
+   each 1:1 message; **Send 4 reminders**. Nothing went out before this.
+2. Anna's phone (within 2 seconds): "Hi Anna! You're scheduled in Kids this Sunday, Oct 11,
+   at 9:30, as Helper. Can you make it?" with **1 Yes, I'll be there** / **2 I can't make it**.
+3. Tap **I can't make it**. The buttons go away, her answer shows as her message, and
+   Shepherd replies "Thank you for letting me know. I've told your leader you can't make
+   Oct 11." Her answer is recorded as a proposal she approved herself (audit log).
+4. Sarah's Home updates by itself: "Anna Parker can't make Sun Oct 11 (Kids, Helper)", the
+   double booking is gone, and an **Open slot** offers a free helper: **Put Caleb in**. One tap
+   records it.
+5. Optional, typed in Anna's (or Emily's) chat:
+   - "2 — my mom is in the hospital." Sarah sees the note once, with "It isn't kept:
+     dismissing deletes it." Shepherd never asks why and stores the reason nowhere else.
+   - "maybe, depends on work": one clarifying question, **Can't commit** / **I'll let you
+     know**. Never recorded as a yes.
+   - "I'm out the 19th and the 26th.": read back with **1 Yes / 2 Change**; saved only on Yes.
+   - "What do you remember about me?": only her teams, her stated preference and her away
+     dates; never leader notes or memory.
+   - "stop" / "start": reminders off and on; her leader is told.
+
+Reset before presenting: the demo chat keeps Anna's own messages in that browser, so use
+**Clear Anna's side of this demo chat** under the phone after a reset.
+
 ### What is sample content
 
-On Home, the absence check-in, reminders, unconnected people and the failed send ("Review
-and send" shows it) are **fixed sample content**; those features come in later milestones.
+On Home, the absence check-in and the "people aren't connected yet" notice are **fixed
+sample content**; those come in later milestones. Reminders are real: drafted by the worker,
+sent only on approval.
 Ask Shepherd's drafts are real text from the roster, but Shepherd doesn't send them.
 
 ## API map for the frontend
@@ -105,6 +138,8 @@ Base URL `http://localhost:8000`. CORS allows `http://localhost:4300` (the app) 
 | Weekly briefing | `GET /churches/{cid}/leaders/{person_id}/briefing?start=YYYY-MM-DD` |
 | Rosters | `GET /churches/{cid}/ministries/{mid}/suggestion`, `POST …/suggestion/approve {person_id, assignments}`, `GET /churches/{cid}/ministries/{mid}/roster?start=&end=` |
 | Conflict huddle | `POST /churches/{cid}/findings/{finding_id}/huddle {person_id}`, `GET /churches/{cid}/huddles/{id}`, `POST …/huddles/{id}/choose {person_id, slot_id}`, `POST …/huddles/{id}/resolve {person_id, outcome}`, `POST …/huddles/{id}/accept-replacement {person_id, ministry_id}` (Resolve), `POST …/huddles/{id}/undo-replacement {person_id}` |
+| Volunteer chat (demo) | `GET /churches/{cid}/volunteers`, `GET /churches/{cid}/people/{pid}/chat` (Shepherd's side), `POST …/people/{pid}/chat {text}` (her message; the same handling Telegram will use) |
+| Reminders and notices | `POST /churches/{cid}/ministries/{mid}/reminders/draft`, approve through the approval queue; `GET /churches/{cid}/leaders/{pid}/notices`, `DELETE /churches/{cid}/notices/{id}?person_id=` |
 | Ask Shepherd | `GET /churches/{cid}/ministries/{mid}/ask?person_id=` (greeting and suggestions), `POST …/ask {person_id, question}` or `{person_id, intent, about_person_id?, on?, role_id?}` |
 | Memory | `GET /churches/{cid}/ministries/{mid}/memory`, `POST …/memory/notes {person_id, text, kind?, about_person_id?}`, `DELETE …/memory/{id}?person_id=` |
 | Approval queue | `GET /churches/{cid}/proposals?status=pending` (each has `title` and `summary`), `POST …/proposals/{id}/approve` or `/reject` with `{person_id}` |

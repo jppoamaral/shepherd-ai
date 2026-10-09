@@ -126,6 +126,11 @@
                     <span class="sh-role">{{ role.role }}</span>
                     <b>{{ p.name }}</b>
                     <sh-experience [level]="p.experience" />
+                    @if (p.status === 'confirmed') {
+                      <span class="sh-tag sh-tag--ok"><sh-icon name="check" />Confirmed</span>
+                    } @else if (p.status === 'declined') {
+                      <span class="sh-tag sh-tag--attn"><sh-icon name="alert" />Can't make it</span>
+                    }
                   </div>
                   @for (flag of p.flags; track flag) {
                     <div class="sh-flag"><sh-icon name="alert" /><span><strong>{{ p.name.split(' ')[0] }}:</strong> {{ flagText[flag] ?? flag }}</span></div>

@@ -8,6 +8,17 @@ const needsLeader: CanActivateFn = () =>
 
 export const routes: Routes = [
   { path: 'pick', loadComponent: () => import('./pages/pick/pick').then((m) => m.PickPage), title: 'Shepherd' },
+  // Demo of the volunteer side (stands in for Telegram): no leader, no sign-in.
+  {
+    path: 'demo/volunteers',
+    loadComponent: () => import('./pages/demo/volunteers').then((m) => m.DemoVolunteersPage),
+    title: 'Volunteer chat (demo) · Shepherd',
+  },
+  {
+    path: 'demo/chat/:personId',
+    loadComponent: () => import('./pages/demo/chat').then((m) => m.DemoChatPage),
+    title: 'Volunteer chat (demo) · Shepherd',
+  },
   {
     path: '',
     canActivate: [needsLeader],

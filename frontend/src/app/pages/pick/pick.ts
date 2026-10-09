@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
 import type { Church, Leader } from '../../api/types';
 import { Session } from '../../core/session';
@@ -9,7 +9,7 @@ import { Icon } from '../../ui/icon';
 /** "Who are you?" There's no login in the demo; leaders pick themselves. */
 @Component({
   selector: 'sh-pick',
-  imports: [Icon],
+  imports: [Icon, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     .wrap { min-height: 100vh; display: grid; place-items: center; padding: var(--space-5) var(--space-4); }
@@ -21,6 +21,9 @@ import { Icon } from '../../ui/icon';
     .brand { display: flex; align-items: center; gap: var(--space-2); }
     .logo { display: inline-flex; width: 32px; height: 32px; border-radius: var(--radius-pill);
       background: var(--forest); color: var(--on-forest); align-items: center; justify-content: center; }
+    .divider { border: 0; border-top: 1px solid var(--line); margin: var(--space-2) 0; width: 100%; }
+    .volunteer-link { width: 100%; justify-content: flex-start; gap: var(--space-3); padding: var(--space-2) var(--space-4);
+      min-height: 64px; border-radius: var(--radius-md); text-align: left; }
     select { min-height: var(--tap-min); border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong);
       background: var(--paper); color: var(--forest); font: 600 14px/20px var(--font-sans); padding: 0 var(--space-4); }
   `,
@@ -58,6 +61,14 @@ import { Icon } from '../../ui/icon';
             }
           }
         </div>
+        <hr class="divider" />
+        <a class="sh-btn sh-btn--quiet volunteer-link" routerLink="/demo/volunteers" [queryParams]="{ church: churchId() }">
+          <span class="avatar"><sh-icon name="chat" /></span>
+          <span class="person-text">
+            <span class="person-name">See what volunteers get</span>
+            <span class="sh-cap">Open a volunteer's chat (demo)</span>
+          </span>
+        </a>
       </div>
     </main>
   `,

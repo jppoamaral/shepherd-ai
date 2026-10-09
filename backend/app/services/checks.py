@@ -159,6 +159,11 @@ def _bucket_start(local: datetime, period: Period) -> date:
     return day.replace(day=1)
 
 
+def _plural(role: str, n: int) -> str:
+    """ "3 Helpers", "1 Helper"; names that are already plural stay ("2 Vocals")."""
+    return role if n == 1 or role.endswith("s") else f"{role}s"
+
+
 def below_minimum(needs: Iterable[RoleNeed]) -> list[Issue]:
     return [
         Issue(
@@ -166,7 +171,7 @@ def below_minimum(needs: Iterable[RoleNeed]) -> list[Issue]:
             key=f"below_minimum:{n.gathering_id}:{n.role_id}",
             severity=WARNING,
             text=(
-                f"{n.ministry_name} needs {n.minimum} {n.role_name} at {n.gathering_name} "
+                f"{n.ministry_name} needs {n.minimum} {_plural(n.role_name, n.minimum)} at {n.gathering_name} "
                 f"({n.local_start:%a %-d %b} {format_time(n.local_start.time())}) and has {n.filled}."
             ),
             gathering_id=n.gathering_id,

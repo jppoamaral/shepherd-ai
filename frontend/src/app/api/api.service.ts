@@ -4,6 +4,10 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import type {
   AskAnswer,
+  ChatMessage,
+  ChatThread,
+  Notice,
+  Volunteer,
   AskIn,
   AskStart,
   Briefing,
@@ -93,6 +97,40 @@ export class ApiService {
       person_id: personId,
       slot_id: slotId,
     });
+  }
+
+  /** Volunteer chat (demo): people on a team, for the "open a volunteer's chat" picker. */
+  volunteers(churchId: string): Observable<Volunteer[]> {
+    return this.http.get<Volunteer[]>(`${this.base}/churches/${churchId}/volunteers`);
+  }
+
+  /** Shepherd's side of one person's chat. */
+  chat(churchId: string, personId: string): Observable<ChatThread> {
+    return this.http.get<ChatThread>(`${this.base}/churches/${churchId}/people/${personId}/chat`);
+  }
+
+  /** The volunteer writes (or taps a button): the same handling Telegram will use. */
+  say(churchId: string, personId: string, text: string): Observable<{ replies: ChatMessage[] }> {
+    return this.http.post<{ replies: ChatMessage[] }>(`${this.base}/churches/${churchId}/people/${personId}/chat`, {
+      text,
+    });
+  }
+
+  /** What volunteers asked Shepherd to pass on to this leader. */
+  notices(churchId: string, personId: string): Observable<Notice[]> {
+    return this.http.get<Notice[]>(`${this.base}/churches/${churchId}/leaders/${personId}/notices`);
+  }
+
+  /** Dismissing deletes the notice, including any personal note. */
+  dismissNotice(churchId: string, noticeId: string, personId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/churches/${churchId}/notices/${noticeId}`, {
+      params: { person_id: personId },
+    });
+  }
+
+  /** Draft the coming week's reminders (pending until a leader approves). */
+  draftReminders(churchId: string, ministryId: string): Observable<unknown> {
+    return this.http.post(`${this.base}/churches/${churchId}/ministries/${ministryId}/reminders/draft`, {});
   }
 
   /** Ask Shepherd: a greeting and suggested questions from this week's data. */

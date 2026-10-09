@@ -1,0 +1,83 @@
+:host { display: block; min-height: 100vh; background: var(--cream); }
+:host(.embedded) { min-height: 0; }
+.page { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); padding: var(--space-4); }
+:host(.embedded) .page { padding: var(--space-1) var(--space-2); }
+
+.banner {
+  width: 100%; max-width: 390px; display: flex; gap: var(--space-2); align-items: center;
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  border: 1px dashed var(--line-strong); background: var(--paper); color: var(--gold-deep);
+  font: 600 14px/20px var(--font-sans);
+}
+
+/* A 390px phone, like the Vol-* mockups */
+.phone {
+  width: 100%; max-width: 390px; height: min(760px, calc(100vh - 160px)); min-height: 480px;
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 36px; background: var(--sage); box-shadow: var(--shadow-card);
+}
+:host(.embedded) .phone { height: calc(100vh - 96px); min-height: 0; }
+.chat-head {
+  display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-2);
+  background: var(--paper); border-bottom: 1px solid var(--line);
+}
+.back { display: grid; place-items: center; width: var(--tap-min); height: var(--tap-min); color: var(--forest); }
+.bot {
+  flex: none; width: 40px; height: 40px; border-radius: var(--radius-pill);
+  background: var(--forest); color: var(--gold); display: grid; place-items: center;
+}
+.who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.name { font: 600 17px/22px var(--font-sans); color: var(--forest); }
+.sub, .for { font: 500 12px/16px var(--font-sans); color: var(--ink-muted); }
+
+.log { flex: 1; overflow-y: auto; padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.empty { margin: auto; text-align: center; color: var(--ink-muted); font-size: 14px; line-height: 20px; max-width: 260px; }
+.day {
+  align-self: center; margin: var(--space-1) 0; padding: 2px var(--space-3); border-radius: var(--radius-pill);
+  background: var(--sage-deep); color: var(--forest); font: 600 12px/18px var(--font-sans);
+}
+.in { display: flex; flex-direction: column; align-items: flex-start; max-width: 306px; gap: var(--space-1); }
+.bubble { padding: 10px 14px 8px; font: 400 16px/23px var(--font-sans); display: flex; flex-direction: column; gap: 2px; }
+.bubble--in {
+  background: var(--paper); color: var(--forest); border: 1px solid var(--line);
+  border-radius: 18px 18px 18px 6px; box-shadow: var(--shadow-card);
+}
+.bubble--out {
+  align-self: flex-end; max-width: 290px; background: var(--forest); color: var(--on-forest);
+  border-radius: 18px 18px 6px 18px;
+}
+.stamp { margin-top: var(--space-1); text-align: right; font: 500 12px/16px var(--font-sans); color: var(--ink-muted); }
+.bubble--out .stamp { color: var(--sage-deep); }
+
+.quick { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.quick-btn {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: var(--space-2) 14px;
+  border-radius: var(--radius-md); border: 1.5px solid var(--line-strong); background: var(--paper);
+  color: var(--forest); font: 600 16px/22px var(--font-sans); cursor: pointer; text-align: left;
+}
+.quick-btn[disabled] { cursor: progress; opacity: 0.7; }
+.num {
+  flex: none; width: 24px; height: 24px; border-radius: var(--radius-pill); background: var(--sage);
+  display: grid; place-items: center; font: 600 13px/16px var(--font-sans);
+}
+.typing { color: var(--ink-muted); font-size: 14px; line-height: 20px; }
+.offline {
+  display: flex; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-3);
+  background: var(--status-alert-bg); color: var(--status-alert-ink); font-size: 14px; line-height: 20px;
+}
+
+.composer {
+  display: flex; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-3) var(--space-5);
+  background: var(--paper); border-top: 1px solid var(--line);
+}
+.composer input {
+  flex: 1; min-width: 0; min-height: var(--tap-min); padding: 0 var(--space-4); border-radius: var(--radius-pill);
+  border: 1px solid var(--sage-deep); background: var(--cream); color: var(--ink); font: 400 16px/24px var(--font-sans);
+}
+.send {
+  flex: none; width: var(--tap-min); height: var(--tap-min); border-radius: var(--radius-pill); border: 0;
+  background: var(--forest); color: var(--on-forest); display: grid; place-items: center; cursor: pointer;
+}
+.send[disabled] { background: var(--sage-deep); cursor: not-allowed; }
+.hint { max-width: 390px; text-align: center; }
+.clear { font-size: 12px; }

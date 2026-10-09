@@ -84,6 +84,7 @@ PLAIN_DECLINE = re.compile(
 YES_BUTTONS = ("Yes", "Change")
 MAYBE_BUTTONS = ("Can't commit", "I'll let you know")
 KNOW_BUTTONS = ("Change something", "All good")
+BUTTONS_FOR = {"away_confirm": YES_BUTTONS, "maybe": MAYBE_BUTTONS, "what_i_know": KNOW_BUTTONS}
 
 
 @dataclass
@@ -157,6 +158,11 @@ def _route(ctx: Inbound, text: str, llm: LLMClient | None) -> list[BotReply]:
         return [_say(ctx, "Reminders are off. Write 'start' anytime to turn them back on.")]
 
     awaiting = ctx.convo.awaiting
+    # A tapped (or typed) button label counts as its number: "Can't commit" is 1 here.
+    labels = BUTTONS_FOR.get(awaiting or "", ())
+    for number, label in enumerate(labels, 1):
+        if text.strip(" .!").casefold() == label.casefold():
+            text = str(number)
     if awaiting == "away_confirm":
         if YES.match(text):
             return _save_away(ctx, ctx.convo.context.get("dates", []))

@@ -1,0 +1,77 @@
+<div class="page">
+  <p class="banner" role="note"><sh-icon name="link" />Demo: in real life this happens in Telegram.</p>
+
+  <div class="phone">
+    <header class="chat-head">
+      @if (!embed()) {
+        <a class="back" routerLink="/demo/volunteers" [queryParams]="{ church: church() }" aria-label="Back to volunteers">
+          <sh-icon name="back" />
+        </a>
+      }
+      <span class="bot" aria-hidden="true"><sh-icon name="logo" /></span>
+      <span class="who">
+        <span class="name">Shepherd</span>
+        <span class="sub">{{ thread()?.church ?? 'Your church' }} · bot</span>
+      </span>
+      <span class="for">{{ first() ? first() + "'s phone" : '' }}</span>
+    </header>
+
+    <div class="log" role="log" aria-label="Chat" aria-live="polite">
+      @if (!lines().length) {
+        <p class="empty">Nothing here yet. Approved reminders and Shepherd's replies show up here.</p>
+      }
+      @for (line of lines(); track line.key; let i = $index) {
+        @if (i === 0 || day(lines()[i - 1].at) !== day(line.at)) {
+          <p class="day">{{ day(line.at) }}</p>
+        }
+        @if (line.from === 'shepherd') {
+          <div class="in">
+            <div class="bubble bubble--in">
+              @for (para of line.body.split('\n'); track $index) {
+                <p>{{ para }}</p>
+              }
+              <p class="stamp">{{ time(line.at) }}</p>
+            </div>
+            @if (buttonsFor() === line.key) {
+              <div class="quick" role="group" aria-label="Quick replies">
+                @for (label of line.buttons; track label; let n = $index) {
+                  <button type="button" class="quick-btn" [disabled]="sending()" (click)="send(label)">
+                    <span class="num" aria-hidden="true">{{ n + 1 }}</span>{{ label }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="bubble bubble--out">
+            <p>{{ line.body }}</p>
+            <p class="stamp">{{ time(line.at) }}</p>
+          </div>
+        }
+      }
+      @if (sending()) {
+        <p class="typing" role="status">Shepherd is typing…</p>
+      }
+    </div>
+
+    @if (failed()) {
+      <p class="offline" role="alert"><sh-icon name="alert" />Can't reach Shepherd. Is the server running?</p>
+    }
+
+    <form class="composer" (ngSubmit)="submit()">
+      <label class="visually-hidden" for="message">Message to Shepherd</label>
+      <input id="message" name="message" type="text" [(ngModel)]="draft" autocomplete="off" placeholder="Message" maxlength="1000" />
+      <button type="submit" class="send" [disabled]="sending() || !draft.trim()" aria-label="Send message">
+        <sh-icon name="send" />
+      </button>
+    </form>
+  </div>
+
+  @if (!embed()) {
+    <p class="sh-cap hint">
+      Volunteers never use the app. Reply with the buttons, or type: "1", "maybe", "I'm away the 19th", "stop",
+      "What do you remember about me?"
+    </p>
+  }
+  <button type="button" class="sh-btn sh-btn--quiet clear" (click)="clear()">Clear {{ first() || 'her' }}'s side of this demo chat</button>
+</div>

@@ -601,6 +601,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/churches/{church_id}/volunteers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Volunteers
+         * @description People on at least one team, for the demo's "open a volunteer's chat" picker.
+         */
+        get: operations["volunteers_churches__church_id__volunteers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/churches/{church_id}/people/{person_id}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Thread
+         * @description Shepherd's side of this one person's 1:1 chat. Never anyone else's messages.
+         */
+        get: operations["thread_churches__church_id__people__person_id__chat_get"];
+        put?: never;
+        /**
+         * Inbound
+         * @description A volunteer's message. Read by rules (and the model for free text); her answer is
+         *     recorded through the approval queue; the bot's reply lands in her chat.
+         */
+        post: operations["inbound_churches__church_id__people__person_id__chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/churches/{church_id}/ministries/{ministry_id}/reminders/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draft
+         * @description Draft the coming week's reminders for approval (the worker also does this nightly).
+         */
+        post: operations["draft_churches__church_id__ministries__ministry_id__reminders_draft_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/churches/{church_id}/leaders/{person_id}/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notices
+         * @description What volunteers asked Shepherd to pass on, for the ministries this person leads.
+         */
+        get: operations["notices_churches__church_id__leaders__person_id__notices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/churches/{church_id}/notices/{notice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Dismiss
+         * @description Dismiss a notice: it's deleted, including any personal note it carried.
+         */
+        delete: operations["dismiss_churches__church_id__notices__notice_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -791,6 +896,7 @@ export interface components {
             people: string[];
             /** Can Huddle */
             can_huddle: boolean;
+            fill?: components["schemas"]["GapFill"] | null;
         };
         /** BriefingOut */
         BriefingOut: {
@@ -822,6 +928,49 @@ export interface components {
         ChatIn: {
             /** Text */
             text: string;
+        };
+        /**
+         * ChatMessageOut
+         * @description Shepherd's side of one person's chat: approved messages and the bot's replies.
+         */
+        ChatMessageOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Body */
+            body: string;
+            /** Buttons */
+            buttons: string[];
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Approved */
+            approved: boolean;
+        };
+        /** ChatReplyOut */
+        ChatReplyOut: {
+            /** Replies */
+            replies: components["schemas"]["ChatMessageOut"][];
+        };
+        /** ChatThreadOut */
+        ChatThreadOut: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Name */
+            name: string;
+            /** Church */
+            church: string;
+            /** Channel */
+            channel: string;
+            /** Messages */
+            messages: components["schemas"]["ChatMessageOut"][];
         };
         /** Choice */
         Choice: {
@@ -880,6 +1029,34 @@ export interface components {
          * @enum {string}
          */
         FindingType: "overlap" | "blockout" | "below_minimum" | "load" | "absent" | "silent_ministry" | "unmatched_name";
+        /** GapFill */
+        GapFill: {
+            /**
+             * Ministry Id
+             * Format: uuid
+             */
+            ministry_id: string;
+            /**
+             * Gathering Id
+             * Format: uuid
+             */
+            gathering_id: string;
+            /**
+             * Role Id
+             * Format: uuid
+             */
+            role_id: string;
+            /** Role */
+            role: string;
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Name */
+            name: string;
+            experience: components["schemas"]["Experience"];
+        };
         /**
          * GatheringKind
          * @enum {string}
@@ -1330,6 +1507,32 @@ export interface components {
             /** Leaders */
             leaders: components["schemas"]["LeaderOut"][];
         };
+        /** NoticeOut */
+        NoticeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Ministry Id
+             * Format: uuid
+             */
+            ministry_id: string;
+            /** About */
+            about: string;
+            /** Kind */
+            kind: string;
+            /** Text */
+            text: string;
+            /** Note */
+            note: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+        };
         /** OnboardingOut */
         OnboardingOut: {
             /**
@@ -1692,6 +1895,22 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VolunteerOut */
+        VolunteerOut: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Name */
+            name: string;
+            /** Ministries */
+            ministries: string[];
+            /** Connected */
+            connected: boolean;
+            /** Stopped */
+            stopped: boolean;
         };
         /**
          * Weekday
@@ -2801,6 +3020,201 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AskAnswer"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    volunteers_churches__church_id__volunteers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolunteerOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    thread_churches__church_id__people__person_id__chat_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatThreadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inbound_churches__church_id__people__person_id__chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatReplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draft_churches__church_id__ministries__ministry_id__reminders_draft_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ministry_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notices_churches__church_id__leaders__person_id__notices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_churches__church_id__notices__notice_id__delete: {
+        parameters: {
+            query: {
+                person_id: string;
+            };
+            header?: never;
+            path: {
+                notice_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

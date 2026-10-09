@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
-import type { Briefing, BriefingItem, Proposal } from '../../api/types';
+import type { Briefing, BriefingItem, GapFill, Notice, Proposal } from '../../api/types';
 import { Session } from '../../core/session';
 import { churchToday, longDate, monthDay } from '../../core/format';
 import { Icon } from '../../ui/icon';
@@ -26,6 +26,9 @@ export class HomePage {
   protected readonly error = signal('');
   protected readonly busy = signal<string | null>(null);
   protected readonly queueMessage = signal('');
+  protected readonly notices = signal<Notice[]>([]);
+  /** Which reminders card is expanded to review every message. */
+  protected readonly reviewing = signal<string | null>(null);
 
   /** Only what concerns the ministry being viewed. */
   protected readonly items = computed(() => {
@@ -38,27 +41,32 @@ export class HomePage {
   protected readonly rosterProposals = computed(() =>
     this.proposals().filter((p) => p.type === 'leader_roster' && p.payload['ministry_id'] === this.session.ministryId()),
   );
-  protected readonly nextGathering = computed(() => {
-    const ministryId = this.session.ministryId();
-    return this.briefing()?.gatherings.find((g) => g.ministry_id === ministryId && g.filled > 0) ?? null;
-  });
+  protected readonly reminderProposals = computed(() =>
+    this.proposals().filter((p) => p.type === 'reminders' && p.payload['ministry_id'] === this.session.ministryId()),
+  );
+  /** Notes from volunteers' chats for the ministry being viewed. */
+  protected readonly myNotices = computed(() =>
+    this.notices().filter((n) => n.ministry_id === this.session.ministryId()),
+  );
 
-  // SAMPLE: the absence check-in, reminders, unconnected people and the failed send aren't
+  // SAMPLE: the absence check-in and unconnected people aren't
   // produced by the backend yet (later milestones). They're shown with fixed sample content
   // for the Kids ministry demo persona, as agreed for the presentation.
   protected readonly showSamples = computed(() => this.session.ministry()?.ministry === 'Kids');
   protected readonly checkInAnswered = signal(false);
-  protected readonly sendState = signal<'ready' | 'partial' | 'sent'>('ready');
 
   protected readonly needsYou = computed(
     () =>
-      this.items().filter((i) => i.type !== 'load').length + (this.showSamples() && !this.checkInAnswered() ? 1 : 0),
+      this.items().filter((i) => i.type !== 'load').length +
+      this.myNotices().length +
+      (this.showSamples() && !this.checkInAnswered() ? 1 : 0),
   );
   protected readonly today = computed(() => longDate(churchToday(this.session.state()?.timezone ?? 'UTC')));
   protected readonly approvalCount = computed(
-    () => this.memorySuggestions().length + this.rosterProposals().length + (this.showSamples() ? 1 : 0),
+    () => this.memorySuggestions().length + this.rosterProposals().length + this.reminderProposals().length,
   );
   protected readonly monthDay = monthDay;
+  protected readonly experienceLabel: Record<string, string> = { new: 'New', experienced: 'Experienced', veteran: 'Veteran' };
 
   constructor() {
     effect(() => {
@@ -67,6 +75,9 @@ export class HomePage {
       this.session.ministryId(); // reload when the ministry changes
       if (churchId && personId) this.load(churchId, personId);
     });
+    // Volunteers answer in their chat while the leader watches: pick up new notices.
+    const timer = setInterval(() => this.checkNotices(), 3000);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
 
   protected kind(item: BriefingItem): CardKind {
@@ -97,6 +108,46 @@ export class HomePage {
 
   protected approveRoster(p: Proposal): void {
     this.decide(p, 'approve', 'Roster approved and recorded.');
+  }
+
+  protected sendReminders(p: Proposal): void {
+    this.decide(p, 'approve', "Sent. Each person gets theirs 1:1 (in this demo, in the volunteer chat).");
+  }
+
+  /** Fill an open slot with the person Shepherd found free: recorded through the approval queue. */
+  protected fill(item: BriefingItem, fill: GapFill): void {
+    this.busy.set(item.finding_id);
+    this.queueMessage.set('');
+    this.api
+      .approveSuggestion(this.session.churchId(), fill.ministry_id, this.session.personId(), [
+        { gathering_id: fill.gathering_id, role_id: fill.role_id, person_id: fill.person_id, reason: 'Filled an open slot.' },
+      ])
+      .subscribe({
+        next: () => {
+          this.busy.set(null);
+          this.queueMessage.set(`${fill.name} is on the roster as ${fill.role}.`);
+          this.load(this.session.churchId(), this.session.personId());
+        },
+        error: (e) => {
+          this.busy.set(null);
+          this.queueMessage.set(e?.error?.detail ?? "That didn't work. Please try again.");
+        },
+      });
+  }
+
+  /** Dismissing deletes the notice, including anything personal the volunteer passed on. */
+  protected dismiss(n: Notice): void {
+    this.api.dismissNotice(this.session.churchId(), n.id, this.session.personId()).subscribe(() =>
+      this.notices.update((all) => all.filter((x) => x.id !== n.id)),
+    );
+  }
+
+  protected count(p: Proposal): number {
+    return (p.payload['messages'] as unknown[] | undefined)?.length ?? 0;
+  }
+
+  protected first(name: string): string {
+    return name.split(' ')[0];
   }
 
   protected copySample(text: string): void {
@@ -137,5 +188,18 @@ export class HomePage {
       },
     });
     this.api.pendingProposals(churchId).subscribe((p) => this.proposals.set(p));
+    this.api.notices(churchId, personId).subscribe((n) => this.notices.set(n));
+  }
+
+  private checkNotices(): void {
+    const churchId = this.session.churchId();
+    const personId = this.session.personId();
+    if (!churchId || !personId) return;
+    this.api.notices(churchId, personId).subscribe((n) => {
+      const known = new Set(this.notices().map((x) => x.id));
+      this.notices.set(n);
+      // Something new from a volunteer: the record may have changed too (a decline opens a slot).
+      if (n.some((x) => !known.has(x.id))) this.load(churchId, personId);
+    });
   }
 }

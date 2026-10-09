@@ -1,7 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { NgTemplateOutlet } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ApiService } from '../api/api.service';
+import type { Volunteer } from '../api/types';
 import { Session } from '../core/session';
 import { initials } from '../core/format';
 import { Icon, IconName } from '../ui/icon';
@@ -57,6 +59,10 @@ const NAV: NavItem[] = [
             </span>
           </div>
           <button class="sh-btn sh-btn--quiet" type="button" (click)="switchLeader()">Switch leader</button>
+          <button class="sh-btn sh-btn--secondary demo-toggle" type="button" [attr.aria-expanded]="panelOpen()"
+                  aria-controls="volunteer-panel" (click)="togglePanel()">
+            <sh-icon name="chat" />{{ panelOpen() ? 'Hide' : 'Show' }} a volunteer's chat (demo)
+          </button>
           <p class="sh-cap">Shepherd suggests, you decide.</p>
         </div>
       </aside>
@@ -70,6 +76,21 @@ const NAV: NavItem[] = [
       <main class="content" id="main">
         <router-outlet />
       </main>
+      @if (panelOpen()) {
+        <aside class="vol-panel" id="volunteer-panel" aria-label="Volunteer chat (demo)">
+          <label class="vol-pick">
+            <span class="sh-cap">Volunteer's phone</span>
+            <select [value]="panelPerson()" (change)="panelPerson.set($any($event.target).value)">
+              @for (v of panelVolunteers(); track v.person_id) {
+                <option [value]="v.person_id">{{ v.name }}</option>
+              }
+            </select>
+          </label>
+          @if (panelUrl(); as url) {
+            <iframe [src]="url" title="Volunteer chat (demo)"></iframe>
+          }
+        </aside>
+      }
 
       <nav class="sh-tabbar tabbar" aria-label="Main">
         @for (item of nav; track item.label) {
@@ -111,6 +132,29 @@ export class Shell {
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
   protected readonly nav = NAV;
+  private readonly sanitizer = inject(DomSanitizer);
+
+  /** Demo: a volunteer's chat beside the leader app (desktop), so both sides show at once. */
+  protected readonly panelOpen = signal(false);
+  protected readonly panelVolunteers = signal<Volunteer[]>([]);
+  protected readonly panelPerson = signal('');
+  protected readonly panelUrl = computed<SafeResourceUrl | null>(() => {
+    const person = this.panelPerson();
+    const church = this.session.churchId();
+    return person && church
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(`/demo/chat/${person}?church=${church}&embed=1`)
+      : null;
+  });
+
+  protected togglePanel(): void {
+    this.panelOpen.update((open) => !open);
+    if (!this.panelOpen() || this.panelVolunteers().length) return;
+    this.api.volunteers(this.session.churchId()).subscribe((all) => {
+      const ordered = [...all].sort((a, b) => Number(b.name === 'Anna Parker') - Number(a.name === 'Anna Parker'));
+      this.panelVolunteers.set(ordered);
+      this.panelPerson.set(ordered[0]?.person_id ?? '');
+    });
+  }
   protected readonly initials = computed(() => initials(this.session.leader()?.name ?? ''));
   protected readonly roleLine = computed(() => {
     const m = this.session.ministry();
