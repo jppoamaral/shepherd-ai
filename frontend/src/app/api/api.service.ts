@@ -8,6 +8,7 @@ import type {
   Huddle,
   Leader,
   Memory,
+  MemoryPending,
   Ministry,
   Proposal,
   Roster,
@@ -82,6 +83,13 @@ export class ApiService {
 
   memory(churchId: string, ministryId: string): Observable<Memory> {
     return this.http.get<Memory>(`${this.base}/churches/${churchId}/ministries/${ministryId}/memory`);
+  }
+
+  noteMemory(churchId: string, ministryId: string, personId: string, text: string): Observable<MemoryPending> {
+    return this.http.post<MemoryPending>(`${this.base}/churches/${churchId}/ministries/${ministryId}/memory/notes`, {
+      person_id: personId,
+      text,
+    });
   }
 
   deleteMemory(churchId: string, ministryId: string, memoryId: string, personId: string): Observable<void> {
