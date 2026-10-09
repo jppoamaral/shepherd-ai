@@ -33,11 +33,12 @@ Seeds are relative to today. The **demo week** starts at the first upcoming Sund
 Each demo starts from fresh data (reset first) with **Sarah Collins** picked on "Who's leading
 today?".
 
-**Order matters: Demo 1, 2 and 4 all use Anna Parker.** Resolve in Demo 1 (or Put Caleb in in
-Demo 4) moves Anna off the Kids roster, and after that Sarah's reminders leave her out ("Not
-sending to Anna Parker"). For one continuous run, do **Demo 4 first** (send reminders, Anna
-declines, fill the gap), then Demo 2 and 3; or reset between demos. Anna's Worship place is
-untouched either way: as **David Morales**, sending Worship reminders still reaches her chat. Dates below assume the demo Sunday is Oct 11; the app always shows the real dates.
+**Order matters: Demos 1, 2 and 4 all use Anna Parker's Sunday double booking.** Resolve in
+Demo 1, or Anna declining in Demo 4, takes her off the Kids roster. After that, Ask Shepherd no
+longer offers "Who can take Anna's place?", and Sarah's reminders leave her out. For one
+continuous run, do **Demo 2, then Demo 3** (Resolve, then Undo, leaves the record as it was),
+**then Demo 4**. Reset before **Demo 1**. Anna's Worship place is untouched either way: as
+**David Morales**, sending Worship reminders still reaches her chat. Dates below assume the demo Sunday is Oct 11; the app always shows the real dates.
 Generated volunteers' names (Caleb Baker, Anna Peterson, …) can differ from these notes, and
 that's fine: every answer comes from the data.
 

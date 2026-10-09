@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../api/api.service';
@@ -16,7 +17,7 @@ const GROUPS: { kind: MemoryItem['kind']; title: string }[] = [
 /** What Shepherd remembers for this ministry. Saved only after the leader says yes. */
 @Component({
   selector: 'sh-memory',
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, Icon, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './memory.css',
   template: `
@@ -25,12 +26,17 @@ const GROUPS: { kind: MemoryItem['kind']; title: string }[] = [
       <p class="sh-muted">Only you and your ministry's leaders see this. Delete anything, any time.</p>
     </section>
 
-    @if (message()) {
-      <p class="sh-notice sh-notice--info" role="status"><sh-icon name="check" />{{ message() }}</p>
+    @if (place() === 'top') {
+      <ng-container *ngTemplateOutlet="feedback" />
     }
-    @if (error()) {
-      <div class="sh-notice sh-notice--error" role="alert"><sh-icon name="alert" /><span>{{ error() }}</span></div>
-    }
+    <ng-template #feedback>
+      @if (message()) {
+        <p class="sh-notice sh-notice--info" role="status"><sh-icon name="check" />{{ message() }}</p>
+      }
+      @if (error()) {
+        <div class="sh-notice sh-notice--error" role="alert"><sh-icon name="alert" /><span>{{ error() }}</span></div>
+      }
+    </ng-template>
 
     @for (p of memory()?.pending ?? []; track p.proposal_id) {
       <article class="sh-card sh-card--suggest">
@@ -86,6 +92,10 @@ const GROUPS: { kind: MemoryItem['kind']; title: string }[] = [
         </label>
         <button type="submit" class="sh-btn sh-btn--secondary" [disabled]="!note.trim() || busy()">Suggest it</button>
         <p class="sh-cap">It shows up above as a suggestion. Nothing is saved until you say yes.</p>
+        <!-- The answer to a note shows here, where the leader is looking, not at the top. -->
+        @if (place() === 'note') {
+          <ng-container *ngTemplateOutlet="feedback" />
+        }
       </form>
     }
   `,
@@ -98,6 +108,8 @@ export class MemoryPage {
   protected readonly busy = signal(false);
   protected readonly message = signal('');
   protected readonly error = signal('');
+  /** Where the latest message or error shows: the top of the page, or under the note form. */
+  protected readonly place = signal<'top' | 'note'>('top');
   protected note = '';
 
   protected readonly groups = computed(() =>
@@ -135,12 +147,18 @@ export class MemoryPage {
     const s = this.session;
     const text = this.note.trim();
     if (!text) return;
-    this.act(this.api.noteMemory(s.churchId(), s.ministryId(), s.personId(), text), 'Added as a suggestion above.', () => {
-      this.note = '';
-    });
+    this.act(
+      this.api.noteMemory(s.churchId(), s.ministryId(), s.personId(), text),
+      'Added as a suggestion above.',
+      () => {
+        this.note = '';
+      },
+      'note',
+    );
   }
 
-  private act(call: Observable<unknown>, done: string, after?: () => void): void {
+  private act(call: Observable<unknown>, done: string, after?: () => void, place: 'top' | 'note' = 'top'): void {
+    this.place.set(place);
     this.busy.set(true);
     this.message.set('');
     this.error.set('');
@@ -161,7 +179,10 @@ export class MemoryPage {
   private load(): void {
     this.api.memory(this.session.churchId(), this.session.ministryId()).subscribe({
       next: (m) => this.memory.set(m),
-      error: () => this.error.set("Shepherd couldn't load memory. Is the server running?"),
+      error: () => {
+        this.place.set('top');
+        this.error.set("Shepherd couldn't load memory. Is the server running?");
+      },
     });
   }
 }
