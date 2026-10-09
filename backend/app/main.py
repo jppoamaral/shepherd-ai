@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import briefing, huddles, intake, memory, onboarding, proposals
+from app.api import briefing, huddles, intake, memory, onboarding, proposals, suggestion
 from app.api.routes import router
 from app.config import get_settings
 
@@ -24,3 +24,4 @@ app.include_router(intake.router)
 app.include_router(briefing.router)
 app.include_router(huddles.router)
 app.include_router(memory.router)
+app.include_router(suggestion.router)

@@ -63,6 +63,18 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
         (uuid.UUID(a["gathering_id"]), uuid.UUID(a["role_id"]), uuid.UUID(a["person_id"]))
         for a in proposal.payload["assignments"]
     ]
+    reasons = {
+        (uuid.UUID(a["gathering_id"]), uuid.UUID(a["role_id"]), uuid.UUID(a["person_id"])): a.get(
+            "reason"
+        )
+        for a in proposal.payload["assignments"]
+    }
+    # A roster the leader pasted (intake) vs. one Shepherd suggested and the leader approved.
+    source = (
+        AssignmentSource.SUGGESTION
+        if proposal.payload.get("source") == "suggestion"
+        else AssignmentSource.LEADER
+    )
     if outsiders := {person_id for _, _, person_id in wanted} - team:
         raise ApprovalError(
             f"{len(outsiders)} person(s) in this roster aren't on the team any more"
@@ -89,7 +101,8 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
             role_id=role_id,
             person_id=person_id,
             status=AssignmentStatus.APPROVED,
-            source=AssignmentSource.LEADER,
+            source=source,
+            reason=reasons.get((gathering_id, role_id, person_id)),
         )
         created += 1
 

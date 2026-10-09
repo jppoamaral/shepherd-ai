@@ -362,3 +362,44 @@ class MemoryNote(BaseModel):
     text: str = Field(min_length=1, max_length=500)
     kind: MemoryKind = MemoryKind.RULE
     about_person_id: uuid.UUID | None = None
+
+
+class SuggestionAlternative(BaseModel):
+    person_id: uuid.UUID
+    name: str
+    experience: Experience
+
+
+class SuggestionLine(BaseModel):
+    gathering_id: uuid.UUID
+    gathering: str
+    start_at: datetime  # church time, with offset
+    role_id: uuid.UUID
+    role: str
+    person_id: uuid.UUID | None  # None = nobody free; the slot stays open
+    name: str | None
+    experience: Experience | None
+    reason: str
+    flags: list[str]
+    alternatives: list[SuggestionAlternative]
+
+
+class SuggestionOut(BaseModel):
+    ministry_id: uuid.UUID
+    ministry: str
+    start: date
+    end: date
+    lines: list[SuggestionLine]
+    open: int  # positions nobody could fill
+
+
+class SuggestedAssignment(BaseModel):
+    gathering_id: uuid.UUID
+    role_id: uuid.UUID
+    person_id: uuid.UUID
+    reason: str | None = None
+
+
+class SuggestionApprove(BaseModel):
+    person_id: uuid.UUID
+    assignments: list[SuggestedAssignment] = Field(min_length=1)
