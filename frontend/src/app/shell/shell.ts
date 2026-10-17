@@ -142,7 +142,9 @@ export class Shell {
     const person = this.panelPerson();
     const church = this.session.churchId();
     return person && church
-      ? this.sanitizer.bypassSecurityTrustResourceUrl(`/demo/chat/${person}?church=${church}&embed=1`)
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(
+          new URL(`./#/demo/chat/${person}?church=${church}&embed=1`, document.baseURI).toString(),
+        )
       : null;
   });
 

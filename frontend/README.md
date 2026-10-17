@@ -15,6 +15,18 @@ npm run api:types    # regenerate src/app/api/schema.ts from the running backend
 The backend must be running (`docker compose up -d` at the repo root). After a backend schema
 change, rebuild the API (`docker compose up -d --build api worker`), then run `npm run api:types`.
 
+## GitHub Pages
+
+The production build uses bundled synthetic data, so the demo works on GitHub Pages without a
+FastAPI server. Local development uses the FastAPI API by default. The repository workflow
+`.github/workflows/deploy-pages.yml` builds the app and publishes it at:
+
+`https://jppoamaral.github.io/shepherd-ai/`
+
+Enable **Settings → Pages → Source: GitHub Actions** once in the repository settings. The
+published demo uses hash-based routes so deep links work on a static Pages host. It stores
+interactive demo changes in the browser only; no real church or volunteer data is sent anywhere.
+
 ## Screens
 
 There is no sign-in yet. Leaders are demo data with fictional names.
