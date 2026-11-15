@@ -41,7 +41,6 @@ from app.db.models import (
     RoleSkill,
 )
 from app.db.repositories.notices import NoticeWriter
-from app.db.repositories.proposals import ProposalRepository
 from app.domain.enums import (
     AssignmentStatus,
     FindingStatus,
@@ -60,7 +59,7 @@ from app.domain.proposals import (
 from app.domain.replies import ParsedReply, ReplyIntent
 from app.llm.client import LLMClient
 from app.llm.prompts.replies import PARSE
-from app.services.approval import ApprovalService
+from app.services.approval import propose_and_approve
 from app.services.briefing import church_today
 from app.services.reminders import BUTTONS as REMINDER_BUTTONS
 from app.services.serve_ask import BUTTONS as ASK_BUTTONS
@@ -704,10 +703,14 @@ def _what_i_know(ctx: Inbound) -> list[BotReply]:
 
 def _approve(ctx: Inbound, kind: ProposalType, payload: ReplyPayload) -> None:
     """Her answer is a proposal she approves herself; ApprovalService applies and audits it."""
-    proposal = ProposalRepository(ctx.session, ctx.church.id).create(
-        type=kind, payload=payload, created_by_agent="steward"
+    propose_and_approve(
+        ctx.session,
+        ctx.church.id,
+        type=kind,
+        payload=payload,
+        created_by_agent="steward",
+        person_id=ctx.person.id,
     )
-    ApprovalService(ctx.session).approve(ctx.church.id, proposal.id, ctx.person.id)
 
 
 def _tell_leaders(

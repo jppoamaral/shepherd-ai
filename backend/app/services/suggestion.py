@@ -30,7 +30,6 @@ from app.db.models import (
     RoleMinimum,
     RoleSkill,
 )
-from app.db.repositories.proposals import ProposalRepository
 from app.domain.enums import AssignmentStatus, MembershipStatus, Period, ProposalType
 from app.domain.proposals import LeaderRosterPayload, RosterLine
 from app.domain.schemas import (
@@ -39,7 +38,7 @@ from app.domain.schemas import (
     SuggestionLine,
     SuggestionOut,
 )
-from app.services.approval import ApprovalService
+from app.services.approval import propose_and_approve
 from app.services.drafting import Candidate, DraftFacts, Position, draft, period_start
 
 
@@ -225,7 +224,9 @@ def approve_suggestion(
     chosen: list[SuggestedAssignment],
 ) -> Proposal:
     """The leader approves their (possibly edited) roster: proposal, then ApprovalService."""
-    proposal = ProposalRepository(session, church_id).create(
+    return propose_and_approve(
+        session,
+        church_id,
         type=ProposalType.LEADER_ROSTER,
         payload=LeaderRosterPayload(
             ministry_id=ministry_id,
@@ -241,5 +242,5 @@ def approve_suggestion(
             ],
         ),
         created_by_agent="roster",
+        person_id=person_id,
     )
-    return ApprovalService(session).approve(church_id, proposal.id, person_id)

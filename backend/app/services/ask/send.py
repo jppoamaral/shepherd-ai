@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from app.db.models import (
     Person,
 )
-from app.db.repositories.proposals import ProposalRepository
 from app.domain.enums import (
     ProposalType,
 )
@@ -26,7 +25,7 @@ from app.domain.schemas import (
     AskSendOut,
 )
 from app.services import reminders
-from app.services.approval import ApprovalService
+from app.services.approval import ApprovalService, propose_and_approve
 from app.services.ask.queries import LOOKAHEAD_DAYS, AskNotFound, Context, load_context, place_of
 from app.services.briefing import roster
 from app.services.reminders import (
@@ -98,10 +97,10 @@ def send_drafts(
             ReminderMessage(assignment_id=assignment_id, person_id=person.id, body=text)
         )
 
-    repo = ProposalRepository(session, church_id)
-    service = ApprovalService(session)
-    proposals = [
-        repo.create(
+    for gathering_id, items in reminder_items.items():
+        propose_and_approve(
+            session,
+            church_id,
             type=ProposalType.REMINDERS,
             payload=RemindersPayload(
                 ministry_id=ministry_id,
@@ -110,19 +109,17 @@ def send_drafts(
                 buttons=reminders.BUTTONS,
             ),
             created_by_agent="ask",
+            person_id=ctx.leader.id,
         )
-        for gathering_id, items in reminder_items.items()
-    ]
     if asks:
-        proposals.append(
-            repo.create(
-                type=ProposalType.SERVE_ASK,
-                payload=ServeAskPayload(ministry_id=ministry_id, messages=asks),
-                created_by_agent="ask",
-            )
+        propose_and_approve(
+            session,
+            church_id,
+            type=ProposalType.SERVE_ASK,
+            payload=ServeAskPayload(ministry_id=ministry_id, messages=asks),
+            created_by_agent="ask",
+            person_id=ctx.leader.id,
         )
-    for proposal in proposals:
-        service.approve(church_id, proposal.id, ctx.leader.id)
     _close_covered_reminders(ctx, set(reminder_items))
 
     sent: list[uuid.UUID] = []

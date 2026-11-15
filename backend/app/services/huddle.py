@@ -26,7 +26,6 @@ from app.db.models import (
     MinistryLeader,
     Person,
 )
-from app.db.repositories.proposals import ProposalRepository
 from app.db.repositories.reads import ministries_led
 from app.domain.enums import (
     FindingStatus,
@@ -43,7 +42,7 @@ from app.domain.schemas import (
     HuddleSide,
     HuddleSlot,
 )
-from app.services.approval import ApprovalService
+from app.services.approval import propose_and_approve
 from app.services.huddle_replacement import (
     free_candidates,
     recheck_around,
@@ -209,7 +208,9 @@ def accept_replacement(
         raise HuddleNotFound("that ministry isn't part of this double booking")
     if side.replacement_person_id is None:
         raise HuddleError(f"Shepherd has no one to suggest for {side.ministry}")
-    proposal = ProposalRepository(session, church_id).create(
+    propose_and_approve(
+        session,
+        church_id,
         type=ProposalType.HUDDLE_ACCEPT_REPLACEMENT,
         payload=HuddleAcceptPayload(
             huddle_id=huddle.id,
@@ -221,8 +222,8 @@ def accept_replacement(
             to_person_id=side.replacement_person_id,
         ),
         created_by_agent="huddle",
+        person_id=person_id,
     )
-    ApprovalService(session).approve(church_id, proposal.id, person_id)
     return huddle_out(session, huddle)
 
 
@@ -231,12 +232,14 @@ def undo_replacement(
 ) -> HuddleOut:
     """Put the volunteer back and reopen the huddle, through the approval queue."""
     huddle = _load(session, church_id, huddle_id, person_id)
-    proposal = ProposalRepository(session, church_id).create(
+    propose_and_approve(
+        session,
+        church_id,
         type=ProposalType.HUDDLE_UNDO_REPLACEMENT,
         payload=HuddleUndoPayload(huddle_id=huddle.id),
         created_by_agent="huddle",
+        person_id=person_id,
     )
-    ApprovalService(session).approve(church_id, proposal.id, person_id)
     return huddle_out(session, huddle)
 
 

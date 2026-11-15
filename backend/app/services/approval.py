@@ -12,11 +12,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import Person, Proposal
 from app.db.repositories.audit import AuditLogRepository
+from app.db.repositories.proposals import ProposalRepository
 from app.domain.enums import ProposalStatus, ProposalType
 from app.domain.schemas import ProposalOut
 from app.services import (
@@ -158,3 +160,23 @@ class ApprovalService:
             approved_by_person_id=person.id if status is ProposalStatus.APPROVED else None,
         )
         self.session.flush()
+
+
+def propose_and_approve(
+    session: Session,
+    church_id: uuid.UUID,
+    *,
+    type: ProposalType,
+    payload: BaseModel,
+    created_by_agent: str,
+    person_id: uuid.UUID,
+) -> Proposal:
+    """Record a proposal and approve it at once, for when a person's tap *is* the approval.
+
+    A leader tapping Send, Resolve or Put in, or a volunteer answering about herself: the
+    change is still a proposal, checked by `may_decide`, applied here and audited.
+    """
+    proposal = ProposalRepository(session, church_id).create(
+        type=type, payload=payload, created_by_agent=created_by_agent
+    )
+    return ApprovalService(session).approve(church_id, proposal.id, person_id)
