@@ -1,23 +1,19 @@
-"""Read-only endpoints and shared API dependencies. Scoped to one church under /churches/{church_id}.
+"""Read-only endpoints. Scoped to one church under /churches/{church_id}.
 
 No auth yet (synthetic data, local only). Auth must land before any real church data.
 """
 
-import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select, text
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, Response, status
+from sqlalchemy import text
 
-from app.db.models import Church
-from app.db.repositories.reads import ChurchReader, list_churches
-from app.db.session import get_session
+from app.api.deps import ReaderDep, SessionDep
+from app.db.repositories.reads import list_churches
 from app.domain.schemas import ChurchOut, GatheringOut, GatheringTypeOut, MinistryOut, PersonOut
 
 router = APIRouter()
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/health")
@@ -28,15 +24,6 @@ def health(session: SessionDep, response: Response) -> dict[str, str]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "degraded", "database": "unreachable"}
     return {"status": "ok", "database": "ok"}
-
-
-def church_reader(church_id: uuid.UUID, session: SessionDep) -> ChurchReader:
-    if session.scalar(select(Church.id).where(Church.id == church_id)) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "church not found")
-    return ChurchReader(session, church_id)
-
-
-ReaderDep = Annotated[ChurchReader, Depends(church_reader)]
 
 
 @router.get("/churches")

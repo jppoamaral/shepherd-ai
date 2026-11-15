@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import ask, briefing, chat, huddles, intake, memory, onboarding, proposals, suggestion
+from app.api.errors import register_error_handlers
 from app.api.routes import router
 from app.config import get_settings
 
@@ -17,6 +18,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+register_error_handlers(app)
 app.include_router(router)
 app.include_router(onboarding.router)
 app.include_router(proposals.router)

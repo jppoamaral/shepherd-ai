@@ -1,15 +1,21 @@
 """Leader notices: what a volunteer's answer left for her leader to see once.
 
 Whether a notice has been dealt with since, and the place a "can serve" notice lets the
-leader fill with one tap. Reads only; `put_in.py` and ApprovalService make the change.
+leader fill with one tap. The record is only read here: `put_in.py` and ApprovalService
+make the change. Dismissing deletes the notice itself.
 """
+
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import Assignment, Gathering, LeaderNotice, Person, Role, RoleMinimum
+from app.db.repositories.notices import NoticeWriter
+from app.db.repositories.reads import is_ministry_leader, ministries_led
 from app.domain.enums import AssignmentStatus
-from app.domain.schemas import PutIn
+from app.domain.schemas import NoticeOut, PutIn
+from app.services.errors import NotAllowed, NotFound
 from app.services.text import and_list
 
 
@@ -120,3 +126,49 @@ def swap_from(session: Session, notice: LeaderNotice) -> tuple[Assignment, str] 
         )
     ).first()
     return (row[0], row[1]) if row else None
+
+
+def leader_notices(session: Session, church_id: uuid.UUID, person_id: uuid.UUID) -> list[NoticeOut]:
+    """What volunteers asked Shepherd to pass on, for the ministries this person leads."""
+    led = ministries_led(session, church_id, person_id)
+    rows = session.execute(
+        select(LeaderNotice, Person.name)
+        .join(Person, Person.id == LeaderNotice.about_person_id)
+        .where(LeaderNotice.church_id == church_id, LeaderNotice.ministry_id.in_(led))
+        .order_by(LeaderNotice.created_at)
+    ).all()
+    out = []
+    for n, name in rows:
+        settled, update = notice_settled(session, n)
+        out.append(
+            NoticeOut(
+                id=n.id,
+                ministry_id=n.ministry_id,
+                about=name,
+                kind=n.kind,
+                text=n.text,
+                note=n.note,
+                at=n.created_at,
+                settled=settled,
+                update=update,
+                put_in=None if settled else notice_put_in(session, n, name),
+            )
+        )
+    return out
+
+
+def dismiss_notice(
+    session: Session, church_id: uuid.UUID, notice_id: uuid.UUID, person_id: uuid.UUID
+) -> None:
+    """A leader dismisses a notice: it's deleted, including any personal note it carried.
+    Notices aren't the record, so this is neither a proposal nor audited."""
+    notice = session.scalar(
+        select(LeaderNotice).where(
+            LeaderNotice.church_id == church_id, LeaderNotice.id == notice_id
+        )
+    )
+    if notice is None:
+        raise NotFound("notice not found")
+    if not is_ministry_leader(session, church_id, notice.ministry_id, person_id):
+        raise NotAllowed("not your ministry")
+    NoticeWriter(session, church_id).dismiss(notice_id)

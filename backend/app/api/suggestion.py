@@ -6,10 +6,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.routes import ReaderDep
+from app.api.deps import ReaderDep
 from app.domain.schemas import ProposalOut, SuggestionApprove, SuggestionOut
 from app.services.briefing import church_today
-from app.services.errors import ApprovalError, NotAllowed, NotFound
 from app.services.proposal_text import describe
 from app.services.suggestion import approve_suggestion, suggest
 
@@ -38,19 +37,9 @@ def get_suggestion(
 def approve(reader: ReaderDep, ministry_id: uuid.UUID, body: SuggestionApprove) -> ProposalOut:
     """Approve the roster as the leader edited it. Recorded through the approval queue."""
     session = reader.session
-    try:
-        proposal = approve_suggestion(
-            session, reader.church_id, ministry_id, body.person_id, body.assignments
-        )
-    except NotFound as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
-    except NotAllowed as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
-    except ApprovalError as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    proposal = approve_suggestion(
+        session, reader.church_id, ministry_id, body.person_id, body.assignments
+    )
     session.commit()
     (described,) = describe(session, reader.church_id, [ProposalOut.model_validate(proposal)])
     return described

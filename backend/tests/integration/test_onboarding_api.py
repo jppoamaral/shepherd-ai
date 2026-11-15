@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.api.onboarding import llm_dependency
+from app.api.deps import llm_dependency
 from app.config import Settings
 from app.db.models import Person
 from app.domain.profile import ReviewReply

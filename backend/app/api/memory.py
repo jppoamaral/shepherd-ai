@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
-from app.api.routes import ReaderDep
+from app.api.deps import ReaderDep
 from app.db.repositories.reads import is_ministry_leader
 from app.domain.enums import MemorySource
 from app.domain.schemas import MemoryNote, MemoryOut, MemoryPendingOut

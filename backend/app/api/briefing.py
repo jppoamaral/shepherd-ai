@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.routes import ReaderDep
+from app.api.deps import ReaderDep
 from app.domain.schemas import BriefingOut, LeaderSummary, RosterOut
 from app.services.briefing import NotALeader, briefing, church_today, leaders, roster
 
