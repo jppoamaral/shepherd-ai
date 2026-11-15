@@ -19,7 +19,7 @@ Clarified for volunteer chat: anything Shepherd *starts* (reminders, nudges, a l
 - **Frontend:** Angular 22 in `/frontend` (standalone components, signals), styled only with the Claude Design tokens and `sh-*` classes in `frontend/design-system/` (read its `USAGE.md` and `screens/README.md` first). API types are generated from the backend's OpenAPI (`npm run api:types`). Runs on port 4300.
 - **Tooling:** uv (deps), ruff (lint + format), mypy (strict on `app/domain` and `app/services`), pytest
 - **Local first:** docker-compose for Postgres, API and worker; settings in `.env` (see `.env.example`). Azure deployment comes later; add no Azure resources yet.
-- **MVP deploy (ADR 0002):** frontend on Vercel (rewrites `/api/*` to the backend), API and free Postgres on Render via `render.yaml`. The scheduler runs inside the API there (`RUN_SCHEDULER=true`); `DEMO_MODE=true` enables the demo reset. Synthetic data only.
+- **MVP deploy (ADR 0002):** frontend on Vercel (rewrites `/api/*` to the backend), API and free Postgres on Render via `render.yaml`. The scheduler runs inside the API there (`RUN_SCHEDULER=true`); `DEMO_MODE=true` enables the demo reset (`POST /demo/reset`). Synthetic data only.
 - **Channels:** `ChannelAdapter` interface + `CopyPasteChannel` (renders approved messages as a list) + `SimulatorChannel` (the demo volunteer chat, standing in for Telegram). Each church picks one (`churches.channel`; `DEFAULT_CHANNEL` / `CHANNEL_BY_CHURCH` in `.env`); the seeds put Grace Community on the simulator. Inbound messages go through `services/inbound.py`, which Telegram will reuse. Telegram comes later.
 
 ## Architecture rules (non-negotiable; enforce in code and tests)
@@ -32,7 +32,7 @@ Clarified for volunteer chat: anything Shepherd *starts* (reminders, nudges, a l
 6. **Membership is an input.** No code path adds, removes or moves a person between ministries.
 7. **Experience per role** (new / experienced / veteran) is set only by a leader, never computed.
 8. **Load rules and preferences** come from the church profile (per church and per person). They produce warnings, never blocks.
-9. **AuditLog is append-only.**
+9. **AuditLog is append-only.** One written exception: the demo reset (`services/demo.py`, only with `DEMO_MODE=true`, synthetic data only; ADR 0002).
 
 ## Repo layout
 

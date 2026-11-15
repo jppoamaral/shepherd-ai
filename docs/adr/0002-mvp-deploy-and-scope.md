@@ -20,6 +20,7 @@ Telegram was planned to follow the Angular app. Building all of this would delay
   - Azure comes later.
 - **Run the scheduler inside the API process** (`RUN_SCHEDULER=true`), because free Render has no background workers. The nightly job also runs at startup, which covers waking from sleep. `app/worker.py` stays the worker for docker-compose.
 - **Add demo mode** (`DEMO_MODE=true`). It enables `POST /demo/reset`, which reloads the synthetic seeds.
+  - **The one exception to the append-only audit log.** The reset empties every table, the audit log included. The database trigger that rejects changes to `audit_log` is switched off and back on inside the reset's own transaction (`services/demo.py`), so a failure leaves the guard in place. Nothing else may do this, and demo mode must never be on where real data lives.
 - **Use one roster suggestion from the existing greedy drafter** (`services/drafting.py`). Training and veteran paths and CP-SAT move to a later phase. `app/solver/` stays empty until then.
 - **No Telegram in the MVP.** Volunteers use the in-app chat (`SimulatorChannel`), entered from the demo list of volunteers.
 - **No onboarding UI in the MVP.** The onboarding backend and terminal CLI stay.
