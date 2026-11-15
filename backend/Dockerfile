@@ -9,4 +9,9 @@ RUN uv sync --frozen --no-dev
 COPY . .
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run as an unprivileged user.
+RUN useradd --system --uid 10001 --no-create-home shepherd
+USER shepherd
+
+# Migrate, seed, serve on $PORT (Render). docker-compose sets its own commands.
+CMD ["./start.sh"]
