@@ -227,8 +227,8 @@ def _route(ctx: Inbound, text: str, llm: LLMClient | None) -> list[BotReply]:
             return [
                 _say(
                     ctx,
-                    "Tell me what to change: new away dates, how often you'd like to serve, "
-                    "or write 'stop' to turn reminders off.",
+                    "Tell me what to change: new away dates, or write 'stop' to turn "
+                    "reminders off.",
                 )
             ]
         if NO.match(text) or "all good" in text.lower():
@@ -319,7 +319,8 @@ def _greet(ctx: Inbound) -> list[BotReply]:
     else:
         first = _say(
             ctx,
-            f"Hi {ctx.first}! I'll message you here before you serve. You can also ask me:",
+            f"Hi {ctx.first}! I'll message you here when you're scheduled. You can reply "
+            "'stop' anytime. You can also ask me:",
             HELP_BUTTONS,
         )
     return [
