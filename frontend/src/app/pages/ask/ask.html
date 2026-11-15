@@ -83,49 +83,11 @@
 
                   @for (d of a.drafts; track d.to_person_id; let i = $index) {
                     @let key = draftKey(turn, i);
-                    @let isSent = !!sent()[key];
-                    <div class="draft">
-                      @if (isSent) {
-                        <span class="sh-tag sh-tag--ok"><sh-icon name="check" />Sent · 1:1</span>
-                      } @else {
-                        <span class="sh-tag sh-tag--soft"><sh-icon name="pencil" />Draft · not sent</span>
-                      }
-                      @if (a.drafts.length > 1) {
-                        <span class="sh-cap">To {{ d.to }}</span>
-                      }
-                      @if (editing() === key && !isSent) {
-                        <label class="stack">
-                          <span class="visually-hidden">Message to {{ d.to }}</span>
-                          <textarea rows="4" [ngModel]="draftBody(turn, i)" (ngModelChange)="setDraftBody(key, $event)"></textarea>
-                        </label>
-                      } @else {
-                        <p>{{ draftBody(turn, i) }}</p>
-                      }
-                      @if (d.replaces && !isSent) {
-                        <p class="sh-muted why-not">For {{ d.replaces }}'s place. If {{ first(d.to) }} says yes, you can swap them in from Home.</p>
-                      }
-                      @if (d.why_not && !isSent) {
-                        <p class="sh-muted why-not">{{ d.why_not }}</p>
-                      }
-                      <div class="sh-actions">
-                        @if (a.drafts.length === 1 && d.can_send && !isSent) {
-                          <button type="button" class="sh-btn sh-btn--primary" [class.idle]="sendingTurn() !== null"
-                                  [attr.aria-disabled]="sendingTurn() !== null" (click)="sendDrafts(turn, [i])">
-                            <sh-icon name="send" />{{ sendingTurn() === turn.id ? 'Sending…' : 'Send to ' + first(d.to) }}
-                          </button>
-                        }
-                        @if (!isSent) {
-                          <button type="button" class="sh-btn sh-btn--secondary" (click)="editing.set(editing() === key ? null : key)"
-                                  [attr.aria-label]="(editing() === key ? 'Done editing' : 'Edit') + ' the message to ' + d.to">
-                            <sh-icon [name]="editing() === key ? 'check' : 'pencil'" />{{ editing() === key ? 'Done' : 'Edit' }}
-                          </button>
-                        }
-                        <button type="button" class="sh-btn sh-btn--secondary" (click)="copy(draftBody(turn, i), key)"
-                                [attr.aria-label]="'Copy the message to ' + d.to">
-                          <sh-icon [name]="copied() === key ? 'check' : 'copy'" />{{ copied() === key ? 'Copied' : 'Copy' }}
-                        </button>
-                      </div>
-                    </div>
+                    <sh-ask-draft [draft]="d" [body]="draftBody(turn, i)" [alone]="a.drafts.length === 1"
+                                  [sent]="!!sent()[key]" [editing]="editing() === key" [copied]="copied() === key"
+                                  [sending]="sendingTurn() === turn.id" [sendingAny]="sendingTurn() !== null"
+                                  (bodyChange)="setDraftBody(key, $event)" (toggleEdit)="editing.set(editing() === key ? null : key)"
+                                  (copy)="copy(draftBody(turn, i), key)" (send)="sendDrafts(turn, [i])" />
                   }
                   @if (a.drafts.length) {
                     @let ready = sendable(turn);

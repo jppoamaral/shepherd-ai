@@ -84,7 +84,22 @@ A **simple, working MVP** to show professors, online at a public URL:
 - [x] Update `CLAUDE.md`: point to this plan and note the stack changes for the MVP.
 - [x] Fix the stale "people aren't connected" line in `docs/demo.md`.
 
-## Phase 1: Focused cleanup (no behavior change)
+## Phase 1: Focused cleanup (no behavior change) — done 2026-11-14
+
+Done on the `mvp-cleanup` branch, one commit per step. What the next phases can rely on:
+
+- **Proposal types and payloads:** `ProposalType` in `app/domain/enums.py`; one payload model per type in `app/domain/proposals.py` (`PAYLOADS` maps type to model). `ProposalRepository.create` takes the model. A new proposal type needs an enum value, a payload model and a handler in `approval.HANDLERS`; `tests/unit/test_proposals.py` fails if one is missing.
+- **Handlers describe themselves:** `ProposalHandler.describe` (names come from `app/services/names.py`).
+- **Leader checks:** `is_ministry_leader` and `ministries_led` in `app/db/repositories/reads.py`.
+- **A tap that is the approval:** `approval.propose_and_approve`.
+- **Ask Shepherd:** the package `app/services/ask/` (`intents`, `queries`, `send`). Notice helpers are in `app/services/notices.py`, chat reads in `app/services/chat.py`, wording helpers in `app/services/text.py`.
+- **API:** shared dependencies in `app/api/deps.py`. Service errors become HTTP in `app/api/errors.py`, which also rolls the request back; routers don't catch them.
+- **Architecture test:** only named modules may write the audit log or notices, and routers import no writing repository.
+- **Frontend:** Home's cards are `notice-card`, `finding-card` and `proposal-card` in `pages/home/`; Ask's draft is `pages/ask/ask-draft.ts`.
+
+**Left open for the user:** deleting a memory (`services/memory.py: delete_memory`) writes its own audit entry instead of going through a proposal. The architecture test allows it by name. Making it a proposal would change the audit entry's action, so it was not done in a no-behavior-change phase.
+
+The steps, as planned:
 
 This gives clean seams before new features. The steps are ordered by value, and each is a separate commit.
 

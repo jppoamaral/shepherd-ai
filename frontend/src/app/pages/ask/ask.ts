@@ -7,6 +7,7 @@ import type { AskAction, AskAnswer, AskDraft, AskIn, AskStart } from '../../api/
 import { Session } from '../../core/session';
 import { initials } from '../../core/format';
 import { Icon } from '../../ui/icon';
+import { AskDraftCard } from './ask-draft';
 
 type Question = Omit<AskIn, 'person_id'>;
 
@@ -27,7 +28,7 @@ interface Turn {
  */
 @Component({
   selector: 'sh-ask',
-  imports: [FormsModule, NgTemplateOutlet, RouterLink, Icon],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, Icon, AskDraftCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './ask.css',
   templateUrl: './ask.html',
