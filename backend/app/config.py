@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,6 +8,21 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://shepherd:shepherd@localhost:5432/shepherd"
+
+    @field_validator("database_url")
+    @classmethod
+    def use_psycopg(cls, url: str) -> str:
+        """Hosts such as Render hand out `postgres://`; SQLAlchemy needs the psycopg 3 driver."""
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix) :]
+        return url
+
+    # Run the nightly job inside the API process (hosts without background workers).
+    run_scheduler: bool = False
+    # Enables POST /demo/reset, which empties the database and reloads the seeds.
+    # Only for deployments that hold synthetic data and nothing else.
+    demo_mode: bool = False
 
     # Browser origins allowed to call the API (Shepherd's Angular dev server runs on 4300).
     # In .env: CORS_ORIGINS=["http://localhost:4200","https://app.example.org"]

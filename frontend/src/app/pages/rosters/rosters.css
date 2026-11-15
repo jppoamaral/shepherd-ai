@@ -15,3 +15,4 @@
   font: 600 14px/20px var(--font-sans); cursor: pointer;
 }
 .swap select:focus { outline: none; }
+.warnings { display: flex; flex-direction: column; gap: var(--space-2); }

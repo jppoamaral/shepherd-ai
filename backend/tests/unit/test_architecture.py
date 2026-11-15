@@ -38,11 +38,25 @@ WRITE_REPOSITORIES = (
 # ApprovalService, and the handlers it calls, which write through the repositories.
 WRITE_REPOSITORY_IMPORTERS = {
     "app.services.approval",
+    "app.services.profile_apply",
+    "app.services.memory_apply",
     "app.services.roster_apply",
     "app.services.huddle_apply",
     "app.services.reminders_apply",
     "app.services.reply_apply",
     "app.services.serve_ask_apply",
+}
+
+# Rule 9: the audit log is written where a person's decision is applied, nowhere else.
+# Leader notices aren't the record (deleted on dismiss, never audited), but only the code
+# that takes in a volunteer's message or handles a leader's notice may write them.
+RESTRICTED_REPOSITORIES = {
+    "app.db.repositories.audit": {
+        "app.services.approval",
+        # A leader deleting a memory: their own direct action, logged where it happens.
+        "app.services.memory",
+    },
+    "app.db.repositories.notices": {"app.services.inbound", "app.services.notices"},
 }
 
 
@@ -114,6 +128,31 @@ def test_only_approval_service_imports_write_repositories() -> None:
         imports = imported_modules(path.read_text(), module)
         if any(i.startswith(WRITE_REPOSITORIES) for i in imports):
             offenders.append(module)
+    assert offenders == []
+
+
+def test_audit_and_notice_writers_are_the_named_few() -> None:
+    offenders = []
+    for path in APP_DIR.rglob("*.py"):
+        module = module_name(path)
+        imports = imported_modules(path.read_text(), module)
+        for repository, allowed in RESTRICTED_REPOSITORIES.items():
+            if module == repository or module in allowed:
+                continue
+            if any(i.startswith(repository) for i in imports):
+                offenders.append(f"{module} imports {repository}")
+    assert offenders == []
+
+
+def test_no_router_writes_the_record_itself() -> None:
+    """Routers call services; they never import a repository that writes."""
+    readers = ("app.db.repositories.reads", "app.db.repositories.onboarding")
+    offenders = [
+        f"{module_name(path)} imports {i}"
+        for path in python_files("api")
+        for i in imported_modules(path.read_text(), module_name(path))
+        if i.startswith("app.db.repositories.") and not i.startswith(readers)
+    ]
     assert offenders == []
 
 

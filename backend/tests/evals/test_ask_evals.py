@@ -16,7 +16,7 @@ from app.domain.ask import ParsedQuestion
 from app.domain.enums import AskIntent
 from app.llm.factory import get_llm, is_configured
 from app.llm.prompts.ask import PARSE
-from app.services.ask import _context, _facts
+from app.services.ask.queries import facts_for_model, load_context
 from tests.conftest import SEED_TODAY
 
 pytestmark = [
@@ -60,8 +60,10 @@ def test_parses_what_was_asked(
         select(Person.id).where(Person.church_id == grace_id, Person.name == "Sarah Collins")
     )
     assert kids and sarah
-    ctx = _context(session, grace_id, kids, sarah, SEED_TODAY)
-    parsed = get_llm().complete(system=PARSE, user=_facts(ctx, question), schema=ParsedQuestion)
+    ctx = load_context(session, grace_id, kids, sarah, SEED_TODAY)
+    parsed = get_llm().complete(
+        system=PARSE, user=facts_for_model(ctx, question), schema=ParsedQuestion
+    )
     assert parsed.intent is intent
     assert parsed.person == person
     if on is not None:

@@ -13,18 +13,19 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Assignment, Finding, Huddle, MinistryLeader, Person, Proposal
+from app.db.models import Assignment, Finding, Huddle, Person, Proposal
 from app.db.repositories.assignments import AssignmentWriter
-from app.domain.enums import AssignmentSource, AssignmentStatus, FindingStatus, HuddleStatus
-from app.services.errors import ApprovalError
-from app.services.huddle_replacement import (
-    ACCEPT_TYPE,
-    UNDO_TYPE,
-    free_candidates,
-    recheck_around,
+from app.db.repositories.reads import is_ministry_leader
+from app.domain.enums import (
+    AssignmentSource,
+    AssignmentStatus,
+    FindingStatus,
+    HuddleStatus,
+    ProposalType,
 )
-
-__all__ = ["ACCEPT_TYPE", "UNDO_TYPE", "apply_accept", "apply_undo", "may_decide"]
+from app.domain.proposals import HuddleAcceptPayload, HuddleUndoPayload
+from app.services.errors import ApprovalError
+from app.services.huddle_replacement import free_candidates, recheck_around
 
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
@@ -35,22 +36,12 @@ def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     side = _side_ministry(huddle, proposal)
     if side is None:
         return True  # nothing to undo; apply says so
-    return (
-        session.scalar(
-            select(MinistryLeader.id).where(
-                MinistryLeader.church_id == proposal.church_id,
-                MinistryLeader.ministry_id == side,
-                MinistryLeader.person_id == person.id,
-                MinistryLeader.can_approve,
-            )
-        )
-        is not None
-    )
+    return is_ministry_leader(session, proposal.church_id, side, person.id, can_approve=True)
 
 
 def apply_accept(session: Session, proposal: Proposal, approver: Person) -> dict[str, Any]:
     cid = proposal.church_id
-    payload = proposal.payload
+    payload = HuddleAcceptPayload.model_validate(proposal.payload)
     huddle = _huddle(session, proposal)
     if huddle is None:
         raise ApprovalError("huddle not found")
@@ -60,15 +51,15 @@ def apply_accept(session: Session, proposal: Proposal, approver: Person) -> dict
     ):
         raise ApprovalError("This double booking is already settled.")
 
-    assignment_id = uuid.UUID(payload["assignment_id"])
+    assignment_id = payload.assignment_id
     side = next(
         (s for s in finding.details["sides"] if s["assignment_id"] == str(assignment_id)), None
     )
     assignment = session.scalar(
         select(Assignment).where(Assignment.church_id == cid, Assignment.id == assignment_id)
     )
-    volunteer_id = uuid.UUID(payload["from_person_id"])
-    replacement_id = uuid.UUID(payload["to_person_id"])
+    volunteer_id = payload.from_person_id
+    replacement_id = payload.to_person_id
     names = _names(session, cid, [volunteer_id, replacement_id])
     volunteer_first = names[volunteer_id].split(" ")[0]
     if (
@@ -76,9 +67,9 @@ def apply_accept(session: Session, proposal: Proposal, approver: Person) -> dict
         or assignment is None
         or assignment.person_id != volunteer_id
         or assignment.status is AssignmentStatus.DECLINED
-        or str(assignment.ministry_id) != payload["ministry_id"]
+        or assignment.ministry_id != payload.ministry_id
     ):
-        raise ApprovalError(f"{volunteer_first}'s place on {payload['ministry']} has changed.")
+        raise ApprovalError(f"{volunteer_first}'s place on {payload.ministry} has changed.")
 
     free = free_candidates(
         session,
@@ -95,8 +86,8 @@ def apply_accept(session: Session, proposal: Proposal, approver: Person) -> dict
         )
 
     resolution = {
-        "ministry_id": payload["ministry_id"],
-        "ministry": payload["ministry"],
+        "ministry_id": str(payload.ministry_id),
+        "ministry": payload.ministry,
         "assignment_id": str(assignment.id),
         "volunteer_id": str(volunteer_id),
         "volunteer": names[volunteer_id],
@@ -117,7 +108,7 @@ def apply_accept(session: Session, proposal: Proposal, approver: Person) -> dict
     )
     huddle.status = HuddleStatus.RESOLVED
     huddle.outcome = (
-        f"{names[replacement_id]} serves in {payload['ministry']} in {volunteer_first}'s place."
+        f"{names[replacement_id]} serves in {payload.ministry} in {volunteer_first}'s place."
     )
     huddle.details = {**huddle.details, "replacement": resolution}
     recheck_around(session, cid, finding)
@@ -170,18 +161,19 @@ def apply_undo(session: Session, proposal: Proposal, approver: Person) -> dict[s
 
 
 def _huddle(session: Session, proposal: Proposal) -> Huddle | None:
+    # Both payloads name the huddle; the undo's holds nothing else.
     return session.scalar(
         select(Huddle).where(
             Huddle.church_id == proposal.church_id,
-            Huddle.id == uuid.UUID(proposal.payload["huddle_id"]),
+            Huddle.id == HuddleUndoPayload.model_validate(proposal.payload).huddle_id,
         )
     )
 
 
 def _side_ministry(huddle: Huddle, proposal: Proposal) -> uuid.UUID | None:
     """The ministry whose roster changes: named by the accept, recorded for the undo."""
-    if proposal.type == ACCEPT_TYPE:
-        return uuid.UUID(proposal.payload["ministry_id"])
+    if proposal.type == ProposalType.HUDDLE_ACCEPT_REPLACEMENT:
+        return HuddleAcceptPayload.model_validate(proposal.payload).ministry_id
     resolution = huddle.details.get("replacement")
     return uuid.UUID(resolution["ministry_id"]) if resolution else None
 

@@ -1,17 +1,17 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
 import type { Briefing, BriefingItem, GapFill, Leader, Notice, Proposal } from '../../api/types';
 import { Session } from '../../core/session';
-import { churchToday, longDate, monthDay } from '../../core/format';
+import { churchToday, longDate } from '../../core/format';
 import { Icon } from '../../ui/icon';
-
-type CardKind = 'overlap' | 'load' | 'below_minimum';
+import { FindingCard } from './finding-card';
+import { NoticeCard, noticeNeedsLeader } from './notice-card';
+import { ProposalCard, reminderCount } from './proposal-card';
 
 /** Home: the weekly briefing for the current ministry, and what's waiting for approval. */
 @Component({
   selector: 'sh-home',
-  imports: [RouterLink, Icon],
+  imports: [Icon, FindingCard, NoticeCard, ProposalCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './home.css',
   templateUrl: './home.html',
@@ -59,24 +59,15 @@ export class HomePage {
     this.notices().filter((n) => n.ministry_id === this.session.ministryId()),
   );
 
-  // SAMPLE: the absence check-in isn't
-  // produced by the backend yet (later milestones). They're shown with fixed sample content
-  // for the Kids ministry demo persona, as agreed for the presentation.
-  protected readonly showSamples = computed(() => this.session.ministry()?.ministry === 'Kids');
-  protected readonly checkInAnswered = signal(false);
-
   protected readonly needsYou = computed(
     () =>
       this.items().filter((i) => i.type !== 'load').length +
-      this.myNotices().filter((n) => this.needsYouNotice(n)).length +
-      (this.showSamples() && !this.checkInAnswered() ? 1 : 0),
+      this.myNotices().filter(noticeNeedsLeader).length,
   );
   protected readonly today = computed(() => longDate(churchToday(this.session.state()?.timezone ?? 'UTC')));
   protected readonly approvalCount = computed(
     () => this.memorySuggestions().length + this.rosterProposals().length + this.reminderProposals().length,
   );
-  protected readonly monthDay = monthDay;
-  protected readonly experienceLabel: Record<string, string> = { new: 'New', experienced: 'Experienced', veteran: 'Veteran' };
 
   constructor() {
     effect(() => {
@@ -88,24 +79,6 @@ export class HomePage {
     // Volunteers answer in their chat while the leader watches: pick up new notices.
     const timer = setInterval(() => this.checkNotices(), 3000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
-  }
-
-  protected kind(item: BriefingItem): CardKind {
-    return item.type as CardKind;
-  }
-
-  /** "Anna Parker is on Kids and Worship at the same time on Oct 11." */
-  protected overlapHeadline(item: BriefingItem): string {
-    const where = item.ministries.length > 1 ? item.ministries.join(' and ') : `${item.ministries[0]} twice`;
-    return `${item.people[0]} is on ${where} at the same time on ${monthDay(item.on)}.`;
-  }
-
-  /** Split a check's sentence at its first comma: a short headline, then the details. */
-  protected split(text: string): [string, string] {
-    const at = text.indexOf(', ');
-    if (at < 0) return [text.replace(/\.$/, ''), ''];
-    const rest = text.slice(at + 2);
-    return [text.slice(0, at), rest.charAt(0).toUpperCase() + rest.slice(1)];
   }
 
   protected remember(p: Proposal): void {
@@ -121,7 +94,7 @@ export class HomePage {
   }
 
   protected sendReminders(p: Proposal): void {
-    const n = this.count(p);
+    const n = reminderCount(p);
     this.decide(p, 'approve', `Sent ${n} ${n === 1 ? 'reminder' : 'reminders'}, each 1:1.`);
   }
 
@@ -145,6 +118,22 @@ export class HomePage {
           this.queueMessage.set(e?.error?.detail ?? "That didn't work. Please try again.");
         },
       });
+  }
+
+  /** "Still on the team?": yes settles it, later asks again in four weeks. The team never changes. */
+  protected answerCheckIn(item: BriefingItem, answer: 'still_here' | 'later'): void {
+    this.busy.set(item.finding_id);
+    this.queueMessage.set('');
+    this.api.answerCheckIn(this.session.churchId(), item.finding_id, this.session.personId(), answer).subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.briefing.update((b) => b && { ...b, items: b.items.filter((i) => i.finding_id !== item.finding_id) });
+      },
+      error: (e) => {
+        this.busy.set(null);
+        this.queueMessage.set(e?.error?.detail ?? "That didn't work. Please try again.");
+      },
+    });
   }
 
   /** Someone said yes when asked: put them in (a swap if it was someone's place), through
@@ -173,30 +162,6 @@ export class HomePage {
     this.api.dismissNotice(this.session.churchId(), n.id, this.session.personId()).subscribe(() =>
       this.notices.update((all) => all.filter((x) => x.id !== n.id)),
     );
-  }
-
-  /** A decline, "can't commit" or "can serve" needs the leader until the place is dealt with. */
-  protected needsYouNotice(n: Notice): boolean {
-    return (n.kind === 'declined' || n.kind === 'cant_commit' || n.kind === 'can_serve') && !n.settled;
-  }
-
-  /** How many reminders will actually go out (the server leaves out places that changed). */
-  protected count(p: Proposal): number {
-    return p.count ?? (p.payload['messages'] as unknown[] | undefined)?.length ?? 0;
-  }
-
-  /** The card's blocks: one message per person, then any "Not sending to …" note. */
-  protected messagesOf(p: Proposal): string[] {
-    return (p.summary ?? '').split('\n\n').filter((b) => b.startsWith('To '));
-  }
-
-  protected notSending(p: Proposal): string | undefined {
-    const notes = (p.summary ?? '').split('\n\n').filter((b) => b.startsWith('Not sending'));
-    return notes.length ? notes.join(' ') : undefined;
-  }
-
-  protected first(name: string): string {
-    return name.split(' ')[0];
   }
 
   private decide(p: Proposal, action: 'approve' | 'reject', done: string): void {

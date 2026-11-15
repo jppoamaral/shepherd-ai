@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.db.repositories.onboarding import OnboardingRepository, OnboardingState
 from app.db.repositories.proposals import ProposalRepository
-from app.domain.enums import OnboardingStatus, OnboardingTopic
+from app.domain.enums import OnboardingStatus, OnboardingTopic, ProposalType
 from app.domain.profile import REPLY_SCHEMAS, ChurchProfileDraft, SampleReply
 from app.llm.client import LLMClient
 from app.llm.prompts import onboarding as prompts
@@ -33,7 +33,6 @@ from app.services.profile import (
 )
 
 AGENT_NAME = "onboarding"
-PROPOSAL_TYPE = "church_profile"
 T = OnboardingTopic
 
 # Sections that arrive pre-filled with defaults, so the admin is shown them with the question.
@@ -75,8 +74,8 @@ class OnboardingAgent:
 
         if result.ready_to_propose:
             proposal = self.proposals.create(
-                type=PROPOSAL_TYPE,
-                payload=state.draft.model_dump(mode="json"),
+                type=ProposalType.CHURCH_PROFILE,
+                payload=state.draft,
                 created_by_agent=AGENT_NAME,
             )
             state.status, state.proposal_id = OnboardingStatus.PROPOSED, proposal.id

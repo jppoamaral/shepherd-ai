@@ -7,3 +7,6 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 node_modules/
+
+# Pitch deck (kept out of the repo)
+shepherd-design-brief/

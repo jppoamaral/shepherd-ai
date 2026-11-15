@@ -2,6 +2,3 @@
 .date { color: var(--gold-deep); }
 .skel-title { height: 32px; max-width: 420px; }
 .sh-card h3 { font-size: 19px; line-height: 26px; font-weight: 600; }
-.summary { white-space: pre-line; }
-.retry { margin-top: var(--space-2); }
-.sh-notice > div { display: flex; flex-direction: column; }

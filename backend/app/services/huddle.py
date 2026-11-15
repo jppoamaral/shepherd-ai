@@ -26,12 +26,14 @@ from app.db.models import (
     MinistryLeader,
     Person,
 )
-from app.db.repositories.proposals import ProposalRepository
+from app.db.repositories.reads import ministries_led
 from app.domain.enums import (
     FindingStatus,
     FindingType,
     HuddleStatus,
+    ProposalType,
 )
+from app.domain.proposals import HuddleAcceptPayload, HuddleUndoPayload
 from app.domain.schemas import (
     HuddleAgenda,
     HuddleLeader,
@@ -40,10 +42,8 @@ from app.domain.schemas import (
     HuddleSide,
     HuddleSlot,
 )
-from app.services.approval import ApprovalService
+from app.services.approval import propose_and_approve
 from app.services.huddle_replacement import (
-    ACCEPT_TYPE,
-    UNDO_TYPE,
     free_candidates,
     recheck_around,
 )
@@ -98,7 +98,7 @@ def start_huddle(
     church = session.get_one(Church, church_id)
     tz = ZoneInfo(church.timezone)
     sides: list[dict[str, str]] = finding.details["sides"]
-    led = _ministries_led(session, church_id, person_id)
+    led = ministries_led(session, church_id, person_id)
     mine = next((s for s in sides if uuid.UUID(s["ministry_id"]) in led), None)
     theirs = next(
         (s for s in sides if s is not mine and uuid.UUID(s["ministry_id"]) not in led), None
@@ -208,20 +208,22 @@ def accept_replacement(
         raise HuddleNotFound("that ministry isn't part of this double booking")
     if side.replacement_person_id is None:
         raise HuddleError(f"Shepherd has no one to suggest for {side.ministry}")
-    proposal = ProposalRepository(session, church_id).create(
-        type=ACCEPT_TYPE,
-        payload={
-            "huddle_id": str(huddle.id),
-            "finding_id": str(finding.id),
-            "ministry_id": str(ministry_id),
-            "ministry": side.ministry,
-            "assignment_id": raw["assignment_id"],
-            "from_person_id": str(finding.person_ids[0]),
-            "to_person_id": str(side.replacement_person_id),
-        },
+    propose_and_approve(
+        session,
+        church_id,
+        type=ProposalType.HUDDLE_ACCEPT_REPLACEMENT,
+        payload=HuddleAcceptPayload(
+            huddle_id=huddle.id,
+            finding_id=finding.id,
+            ministry_id=ministry_id,
+            ministry=side.ministry,
+            assignment_id=uuid.UUID(raw["assignment_id"]),
+            from_person_id=finding.person_ids[0],
+            to_person_id=side.replacement_person_id,
+        ),
         created_by_agent="huddle",
+        person_id=person_id,
     )
-    ApprovalService(session).approve(church_id, proposal.id, person_id)
     return huddle_out(session, huddle)
 
 
@@ -230,12 +232,14 @@ def undo_replacement(
 ) -> HuddleOut:
     """Put the volunteer back and reopen the huddle, through the approval queue."""
     huddle = _load(session, church_id, huddle_id, person_id)
-    proposal = ProposalRepository(session, church_id).create(
-        type=UNDO_TYPE,
-        payload={"huddle_id": str(huddle.id)},
+    propose_and_approve(
+        session,
+        church_id,
+        type=ProposalType.HUDDLE_UNDO_REPLACEMENT,
+        payload=HuddleUndoPayload(huddle_id=huddle.id),
         created_by_agent="huddle",
+        person_id=person_id,
     )
-    ApprovalService(session).approve(church_id, proposal.id, person_id)
     return huddle_out(session, huddle)
 
 
@@ -310,16 +314,6 @@ def _load(
     if person_id not in huddle.leader_person_ids:
         raise HuddleNotAllowed("only the two leaders in this huddle can do that")
     return huddle
-
-
-def _ministries_led(session: Session, church_id: uuid.UUID, person_id: uuid.UUID) -> set[uuid.UUID]:
-    return set(
-        session.scalars(
-            select(MinistryLeader.ministry_id).where(
-                MinistryLeader.church_id == church_id, MinistryLeader.person_id == person_id
-            )
-        )
-    )
 
 
 def _leader_of(

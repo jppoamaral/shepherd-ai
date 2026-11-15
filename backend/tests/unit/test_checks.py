@@ -1,12 +1,20 @@
 """Deterministic checks (brief §5 and §11 'Checks' rows). Pure; no database."""
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from app.domain.checks import AssignmentFact, LoadRuleFact, PreferenceFact, RoleNeed
+from app.domain.checks import AssignmentFact, LoadRuleFact, MemberFact, PreferenceFact, RoleNeed
 from app.domain.enums import FindingType, Period
-from app.services.checks import NOTED, WARNING, below_minimum, load, overlaps
+from app.services.checks import (
+    NOTED,
+    WARNING,
+    absent,
+    below_minimum,
+    blockouts,
+    load,
+    overlaps,
+)
 
 TZ = ZoneInfo("America/Chicago")
 ANNA, HANNAH = uuid.uuid4(), uuid.uuid4()
@@ -165,3 +173,69 @@ def test_role_below_minimum() -> None:
         issue.text
         == "Worship needs 2 Vocals at Sunday 9:30 Service (Sun 11 Oct 9:30 AM) and has 1."
     )
+
+
+def test_blockout_flags_an_assignment_on_a_date_the_person_is_away() -> None:
+    sunday = fact(
+        ANNA, KIDS, "Helper", "Sunday 9:30 Service", datetime(2026, 10, 11, 9, 30, tzinfo=TZ), 75
+    )
+    away = {ANNA: [(date(2026, 10, 10), date(2026, 10, 11))]}  # inclusive
+    (issue,) = blockouts([sunday], away)
+    assert issue.type is FindingType.BLOCKOUT and issue.severity == WARNING
+    assert issue.text == (
+        "Anna Parker can't serve on Sun 11 Oct but is on the Kids roster (Helper) "
+        "at Sunday 9:30 Service 9:30 AM."
+    )
+    assert issue.person_ids == (ANNA,) and issue.ministry_ids == (KIDS,)
+    assert issue.on == "2026-10-11"
+
+
+def test_blockout_ignores_other_days_other_people_and_uses_the_church_local_day() -> None:
+    sunday = fact(
+        ANNA, KIDS, "Helper", "Sunday 9:30 Service", datetime(2026, 10, 11, 9, 30, tzinfo=TZ), 75
+    )
+    assert blockouts([sunday], {ANNA: [(date(2026, 10, 12), date(2026, 10, 18))]}) == []
+    assert blockouts([sunday], {HANNAH: [(date(2026, 10, 11), date(2026, 10, 11))]}) == []
+    # 9 PM Wednesday in Chicago is already Thursday in UTC; the blockout is for the local day.
+    late = fact(
+        HANNAH, MEDIA, "Sound", "Wednesday Youth", datetime(2026, 10, 14, 21, 0, tzinfo=TZ), 60
+    )
+    assert blockouts([late], {HANNAH: [(date(2026, 10, 15), date(2026, 10, 15))]}) == []
+    assert len(blockouts([late], {HANNAH: [(date(2026, 10, 14), date(2026, 10, 14))]})) == 1
+
+
+TODAY = date(2026, 10, 11)
+
+
+def member(
+    last_served: date | None, *, asked_on: date | None = None, upcoming: bool = False
+) -> MemberFact:
+    return MemberFact(
+        membership_id=uuid.uuid4(),
+        person_id=HANNAH,
+        person_name=NAMES[HANNAH],
+        ministry_id=KIDS,
+        ministry_name=NAMES[KIDS],
+        last_served=last_served,
+        asked_on=asked_on,
+        upcoming=upcoming,
+    )
+
+
+def test_absent_from_the_threshold_week_on() -> None:
+    six_weeks = TODAY - timedelta(weeks=6)
+    assert absent([member(six_weeks + timedelta(days=1))], TODAY, 6) == []
+    (issue,) = absent([member(six_weeks)], TODAY, 6)
+    assert issue.type is FindingType.ABSENT and issue.severity == NOTED
+    assert issue.text == "Hannah Wright hasn't served with Kids since 30 Aug."
+    assert issue.details["weeks"] == 6 and issue.details["last_served"] == "2026-08-30"
+    assert issue.person_ids == (HANNAH,) and issue.ministry_ids == (KIDS,)
+
+
+def test_absent_skips_no_history_coming_rosters_and_a_recent_ask_me_later() -> None:
+    long_ago = TODAY - timedelta(weeks=10)
+    assert absent([member(None)], TODAY, 6) == []  # nothing on record to compare
+    assert absent([member(long_ago, upcoming=True)], TODAY, 6) == []
+    asked = TODAY - timedelta(weeks=4)
+    assert absent([member(long_ago, asked_on=asked + timedelta(days=1))], TODAY, 6) == []
+    assert len(absent([member(long_ago, asked_on=asked)], TODAY, 6)) == 1  # asked again

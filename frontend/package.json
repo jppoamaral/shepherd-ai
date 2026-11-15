@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:demo": "ng build --configuration production,demo",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "api:types": "openapi-typescript http://localhost:8000/openapi.json -o src/app/api/schema.ts"

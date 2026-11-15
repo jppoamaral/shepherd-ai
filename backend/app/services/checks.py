@@ -4,20 +4,33 @@
   ministries, on any day of the week.
 * Load: serving count per week or month against the church's load rules and
   the person's own preferred frequency. Warnings, never blocks (rule 8).
+* Blockout: someone on a roster on a date they said they can't serve. The
+  reason is never known here, only the dates.
+* Absent: an active team member whose last time serving is at least the
+  church's threshold of weeks ago, asked of the approver once.
 * Below minimum: a role short of its minimum at a gathering whose roster has
   been started (an untouched gathering isn't a gap yet, just not scheduled).
 """
 
+import uuid
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta
 
-from app.domain.checks import AssignmentFact, Issue, LoadRuleFact, PreferenceFact, RoleNeed
+from app.domain.checks import (
+    AssignmentFact,
+    Issue,
+    LoadRuleFact,
+    MemberFact,
+    PreferenceFact,
+    RoleNeed,
+)
 from app.domain.enums import FindingType, Period
 from app.services.profile import format_time
 
 WARNING = "warning"
 NOTED = "noted"
+ASK_AGAIN_WEEKS = 4
 
 
 def overlaps(assignments: Sequence[AssignmentFact]) -> list[Issue]:
@@ -86,6 +99,36 @@ def _slot(a: AssignmentFact) -> str:
     return f"{a.gathering_name} {format_time(a.local_start.time())} to {format_time(a.local_end.time())}"
 
 
+def blockouts(
+    assignments: Sequence[AssignmentFact],
+    blocked: Mapping[uuid.UUID, Sequence[tuple[date, date]]],
+) -> list[Issue]:
+    """One issue per assignment that falls on a date (church-local, inclusive) its person is away."""
+    issues: list[Issue] = []
+    for a in sorted(assignments, key=lambda a: (a.start, a.person_name, a.ministry_name)):
+        day = a.local_start.date()
+        if not any(start <= day <= end for start, end in blocked.get(a.person_id, ())):
+            continue
+        issues.append(
+            Issue(
+                type=FindingType.BLOCKOUT,
+                key=f"blockout:{a.id}",
+                severity=WARNING,
+                text=(
+                    f"{a.person_name} can't serve on {a.local_start:%a %-d %b} but is on the "
+                    f"{a.ministry_name} roster ({a.role_name}) at {a.gathering_name} "
+                    f"{format_time(a.local_start.time())}."
+                ),
+                gathering_id=a.gathering_id,
+                person_ids=(a.person_id,),
+                ministry_ids=(a.ministry_id,),
+                on=day.isoformat(),
+                details={"assignment_id": str(a.id), "side": _side(a)},
+            )
+        )
+    return issues
+
+
 def load(
     assignments: Sequence[AssignmentFact],
     rules: Iterable[LoadRuleFact],
@@ -148,6 +191,42 @@ def load(
                     },
                 )
             )
+    return issues
+
+
+def absent(members: Iterable[MemberFact], today: date, threshold_weeks: int) -> list[Issue]:
+    """Active members who last served `threshold_weeks` or more ago.
+
+    Left out: people with no serving on record (nothing to compare), people
+    already on a coming roster, and anyone the approver was asked about within
+    the last `ASK_AGAIN_WEEKS` ("Ask me later").
+    """
+    issues: list[Issue] = []
+    for m in sorted(members, key=lambda m: (m.ministry_name, m.person_name)):
+        if m.last_served is None or m.upcoming:
+            continue
+        weeks = (today - m.last_served).days // 7
+        if weeks < threshold_weeks:
+            continue
+        if m.asked_on is not None and today - m.asked_on < timedelta(weeks=ASK_AGAIN_WEEKS):
+            continue
+        issues.append(
+            Issue(
+                type=FindingType.ABSENT,
+                key=f"absent:{m.membership_id}",
+                severity=NOTED,
+                text=f"{m.person_name} hasn't served with {m.ministry_name} since {m.last_served:%-d %b}.",
+                gathering_id=None,
+                person_ids=(m.person_id,),
+                ministry_ids=(m.ministry_id,),
+                on=today.isoformat(),
+                details={
+                    "membership_id": str(m.membership_id),
+                    "last_served": m.last_served.isoformat(),
+                    "weeks": weeks,
+                },
+            )
+        )
     return issues
 
 

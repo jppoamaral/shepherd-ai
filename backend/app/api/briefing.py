@@ -6,8 +6,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.routes import ReaderDep
-from app.domain.schemas import BriefingOut, LeaderSummary, RosterOut
+from app.api.deps import ReaderDep
+from app.domain.schemas import AbsenceAnswer, BriefingOut, LeaderSummary, RosterOut
+from app.services.absence import answer_absence
 from app.services.briefing import NotALeader, briefing, church_today, leaders, roster
 
 router = APIRouter(tags=["briefing"])
@@ -32,6 +33,15 @@ def get_briefing(reader: ReaderDep, person_id: uuid.UUID, start: StartQuery = No
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
     session.commit()  # findings are kept current as checks run
     return result
+
+
+@router.post(
+    "/churches/{church_id}/findings/{finding_id}/answer", status_code=status.HTTP_204_NO_CONTENT
+)
+def answer_check_in(reader: ReaderDep, finding_id: uuid.UUID, body: AbsenceAnswer) -> None:
+    """Answer "still on the team?": yes settles it, later asks again in four weeks."""
+    answer_absence(reader.session, reader.church_id, finding_id, body.person_id, body.answer)
+    reader.session.commit()
 
 
 @router.get("/churches/{church_id}/ministries/{ministry_id}/roster")

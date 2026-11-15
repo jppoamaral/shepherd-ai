@@ -5,8 +5,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.intake import today_dependency
-from app.api.onboarding import llm_dependency
+from app.api.deps import llm_dependency, today_dependency
 from app.domain.enums import Weekday
 from app.domain.intake import NicknameSuggestions, ParsedEntry, ParsedSchedule
 from app.llm.fake import FakeLLM

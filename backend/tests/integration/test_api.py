@@ -123,6 +123,12 @@ def test_only_known_endpoints_write(client: TestClient) -> None:
         ("post", "/churches/{church_id}/notices/{notice_id}/put-in"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/memory/notes"),
         ("delete", "/churches/{church_id}/ministries/{ministry_id}/memory/{memory_id}"),
+        # Demo mode only (404 otherwise): reloads the synthetic seeds.
+        ("post", "/demo/reset"),
+        # Answers "still on the team?" on an absence finding; membership is never changed.
+        ("post", "/churches/{church_id}/findings/{finding_id}/answer"),
+        # Checks an edited roster before approval; a POST only for its body, it saves nothing.
+        ("post", "/churches/{church_id}/ministries/{ministry_id}/suggestion/check"),
         ("post", "/churches/{church_id}/ministries/{ministry_id}/suggestion/approve"),
     }
 

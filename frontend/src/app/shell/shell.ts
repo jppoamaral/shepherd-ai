@@ -12,16 +12,14 @@ interface NavItem {
   label: string;
   short?: string; // tab bar label on phones
   icon: IconName;
-  link: string | null; // null = not designed yet
+  link: string;
 }
 
 const NAV: NavItem[] = [
   { label: 'Home', icon: 'home', link: '/' },
   { label: 'Ask Shepherd', short: 'Ask', icon: 'chat', link: '/ask' },
   { label: 'Rosters', icon: 'calendar', link: '/rosters' },
-  { label: 'People', icon: 'users', link: null },
   { label: 'Memory', icon: 'bookmark', link: '/memory' },
-  { label: 'Settings', icon: 'gear', link: null },
 ];
 
 /** Desktop: 240px sidebar. Phone: header with the ministry switcher and a bottom tab bar. */
@@ -37,17 +35,11 @@ const NAV: NavItem[] = [
         <ng-container [ngTemplateOutlet]="switcher" />
         <nav aria-label="Main" class="side-nav">
           @for (item of nav; track item.label) {
-            @if (item.link) {
-              <a class="sh-navitem" [routerLink]="item.link" routerLinkActive
-                 #rla="routerLinkActive" [routerLinkActiveOptions]="{ exact: item.link === '/' }"
-                 [attr.aria-current]="rla.isActive ? 'page' : null">
-                <sh-icon [name]="item.icon" />{{ item.label }}
-              </a>
-            } @else {
-              <span class="sh-navitem soon" aria-disabled="true" title="Not designed yet">
-                <sh-icon [name]="item.icon" />{{ item.label }}<span class="sh-cap">Soon</span>
-              </span>
-            }
+            <a class="sh-navitem" [routerLink]="item.link" routerLinkActive
+               #rla="routerLinkActive" [routerLinkActiveOptions]="{ exact: item.link === '/' }"
+               [attr.aria-current]="rla.isActive ? 'page' : null">
+              <sh-icon [name]="item.icon" />{{ item.label }}
+            </a>
           }
         </nav>
         <div class="me">
@@ -94,17 +86,11 @@ const NAV: NavItem[] = [
 
       <nav class="sh-tabbar tabbar" aria-label="Main">
         @for (item of nav; track item.label) {
-          @if (item.link) {
-            <a class="sh-navitem" [routerLink]="item.link" routerLinkActive #rla="routerLinkActive"
-               [routerLinkActiveOptions]="{ exact: item.link === '/' }"
-               [attr.aria-current]="rla.isActive ? 'page' : null">
-              <sh-icon [name]="item.icon" />{{ item.short ?? item.label }}
-            </a>
-          } @else {
-            <span class="sh-navitem soon" aria-disabled="true" title="Not designed yet">
-              <sh-icon [name]="item.icon" />{{ item.short ?? item.label }}
-            </span>
-          }
+          <a class="sh-navitem" [routerLink]="item.link" routerLinkActive #rla="routerLinkActive"
+             [routerLinkActiveOptions]="{ exact: item.link === '/' }"
+             [attr.aria-current]="rla.isActive ? 'page' : null">
+            <sh-icon [name]="item.icon" />{{ item.short ?? item.label }}
+          </a>
         }
       </nav>
     </div>
@@ -142,9 +128,7 @@ export class Shell {
     const person = this.panelPerson();
     const church = this.session.churchId();
     return person && church
-      ? this.sanitizer.bypassSecurityTrustResourceUrl(
-          new URL(`./#/demo/chat/${person}?church=${church}&embed=1`, document.baseURI).toString(),
-        )
+      ? this.sanitizer.bypassSecurityTrustResourceUrl(`/demo/chat/${person}?church=${church}&embed=1`)
       : null;
   });
 

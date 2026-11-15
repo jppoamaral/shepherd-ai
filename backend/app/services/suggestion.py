@@ -30,15 +30,15 @@ from app.db.models import (
     RoleMinimum,
     RoleSkill,
 )
-from app.db.repositories.proposals import ProposalRepository
-from app.domain.enums import AssignmentStatus, MembershipStatus, Period
+from app.domain.enums import AssignmentStatus, MembershipStatus, Period, ProposalType
+from app.domain.proposals import LeaderRosterPayload, RosterLine
 from app.domain.schemas import (
     SuggestedAssignment,
     SuggestionAlternative,
     SuggestionLine,
     SuggestionOut,
 )
-from app.services.approval import ApprovalService
+from app.services.approval import propose_and_approve
 from app.services.drafting import Candidate, DraftFacts, Position, draft, period_start
 
 
@@ -224,22 +224,23 @@ def approve_suggestion(
     chosen: list[SuggestedAssignment],
 ) -> Proposal:
     """The leader approves their (possibly edited) roster: proposal, then ApprovalService."""
-    proposal = ProposalRepository(session, church_id).create(
-        type="leader_roster",
-        payload={
-            "ministry_id": str(ministry_id),
-            "source": "suggestion",
-            "assignments": [
-                {
-                    "gathering_id": str(a.gathering_id),
-                    "role_id": str(a.role_id),
-                    "person_id": str(a.person_id),
-                    "reason": a.reason,
-                }
+    return propose_and_approve(
+        session,
+        church_id,
+        type=ProposalType.LEADER_ROSTER,
+        payload=LeaderRosterPayload(
+            ministry_id=ministry_id,
+            source="suggestion",
+            assignments=[
+                RosterLine(
+                    gathering_id=a.gathering_id,
+                    role_id=a.role_id,
+                    person_id=a.person_id,
+                    reason=a.reason,
+                )
                 for a in chosen
             ],
-            "nicknames": [],
-        },
+        ),
         created_by_agent="roster",
+        person_id=person_id,
     )
-    return ApprovalService(session).approve(church_id, proposal.id, person_id)

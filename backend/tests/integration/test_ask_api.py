@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.ask import ask_llm_dependency, today_dependency
+from app.api.deps import ask_llm_dependency, today_dependency
 from app.db.models import Assignment, MemoryItem, Message, Proposal
 from app.domain.ask import ParsedQuestion
 from app.domain.enums import AskIntent

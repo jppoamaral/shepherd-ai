@@ -17,7 +17,7 @@ from app.db.models import (
     Person,
     Role,
 )
-from app.db.repositories.reads import ChurchReader
+from app.db.repositories.reads import ChurchReader, is_ministry_leader, ministries_led
 from app.domain.enums import AssignmentSource, AssignmentStatus
 
 TenantModel = Person | Ministry | Role | Gathering
@@ -140,3 +140,28 @@ def test_default_gathering_window_is_the_next_four_weeks(
     for g in gatherings:
         start = datetime.fromisoformat(g["start_at"])
         assert now <= start < now + timedelta(weeks=4)
+
+
+def test_leader_checks_know_the_ministry_the_duty_and_the_church(
+    session: Session, grace_id: uuid.UUID, riverside_id: uuid.UUID
+) -> None:
+    """Media: Tom schedules, Mike approves. Neither leads Kids, and neither exists at Riverside."""
+
+    def one(model: type[Person] | type[Ministry], name: str) -> uuid.UUID:
+        return session.scalars(
+            select(model.id).where(model.church_id == grace_id, model.name == name)
+        ).one()
+
+    media, kids = one(Ministry, "Media"), one(Ministry, "Kids")
+    tom, mike = one(Person, "Tom Becker"), one(Person, "Mike Harris")
+
+    assert is_ministry_leader(session, grace_id, media, tom)
+    assert is_ministry_leader(session, grace_id, media, tom, can_schedule=True)
+    assert not is_ministry_leader(session, grace_id, media, tom, can_approve=True)
+    assert is_ministry_leader(session, grace_id, media, mike, can_approve=True)
+    assert not is_ministry_leader(session, grace_id, kids, tom)
+    assert not is_ministry_leader(session, riverside_id, media, tom)
+
+    assert media in ministries_led(session, grace_id, mike)
+    assert kids not in ministries_led(session, grace_id, mike)
+    assert ministries_led(session, riverside_id, mike) == set()

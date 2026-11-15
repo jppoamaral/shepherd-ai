@@ -100,16 +100,29 @@
         <sh-icon name="lock" />
         <span>Approving records this roster. Reminders aren't sent until you approve them too.</span>
       </div>
+      @if (warnings()?.length) {
+        <div class="warnings" role="alert">
+          <h3>Before you approve</h3>
+          @for (w of warnings(); track w.text) {
+            <div class="sh-flag"><sh-icon name="alert" /><span>{{ w.text }}</span></div>
+          }
+          <p class="sh-muted">You can still approve. Each leader involved will see this on Home.</p>
+        </div>
+      }
       @if (!session.ministry()?.can_approve) {
         <p class="sh-note"><sh-icon name="clock" />Only {{ session.ministry()?.ministry }}'s approver can approve this roster.</p>
       }
       <div class="sh-actions">
         @if (session.ministry()?.can_approve) {
           <button type="button" class="sh-btn sh-btn--primary" [disabled]="working() || !toApprove().length" (click)="approve()">
-            <sh-icon name="check" />Approve roster
+            <sh-icon name="check" />{{ warnings()?.length ? 'Approve anyway' : 'Approve roster' }}
           </button>
         }
-        <button type="button" class="sh-btn sh-btn--quiet" (click)="editing.set(false)">Back to the suggestion</button>
+        @if (warnings()?.length) {
+          <button type="button" class="sh-btn sh-btn--quiet" (click)="warnings.set(null)">Keep editing</button>
+        } @else {
+          <button type="button" class="sh-btn sh-btn--quiet" (click)="editing.set(false)">Back to the suggestion</button>
+        }
       </div>
     </section>
   }

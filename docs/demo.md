@@ -27,6 +27,7 @@ Seeds are relative to today. The **demo week** starts at the first upcoming Sund
 | **Reminders** | The worker drafts one reminders proposal per ministry and service for the coming week (Kids 9:30: Anna, Emily, Rachel, Megan) | The ministry's approver, on Home ("Review and send") |
 | **Volunteer chat** | Grace sends through the demo chat simulator (`churches.channel = simulator`); Riverside uses the copy-paste list | Each volunteer, 1:1 |
 | **Someone away** | Olivia Grant, a veteran Kids helper, is blocked out on the demo Sunday (no reason is stored) | Ask Shepherd leaves her out of cover suggestions and says so |
+| **Absence check-in** | Olivia last served with Kids seven weeks before the demo Sunday; Grace asks after six | Sarah (Kids approver), on Home: "Still on the team?" Yes settles it, "Ask me later" asks again in four weeks; neither changes the team |
 
 ## Demos
 
@@ -143,9 +144,8 @@ chat** under the phone is there for a rerun without a reset.
 
 ### What is sample content
 
-On Home, the absence check-in and the "people aren't connected yet" notice are **fixed
-sample content**; those come in later milestones. Reminders are real: drafted by the worker,
-sent only on approval.
+Home has no fixed sample content: every card comes from a check, a volunteer's chat or a
+proposal. Reminders are real: drafted by the worker, sent only on approval.
 Ask Shepherd's drafts are real text from the roster, sent only when the leader taps Send.
 "Draft a reminder" sends real reminders (1/2 answers work); Home's reminder card then leaves
 out anyone already reminded.
@@ -157,8 +157,8 @@ Base URL `http://localhost:8000`. CORS allows `http://localhost:4300` (the app) 
 | Screen | Calls |
 | --- | --- |
 | Who am I | `GET /churches`, `GET /churches/{cid}/leaders` |
-| Weekly briefing | `GET /churches/{cid}/leaders/{person_id}/briefing?start=YYYY-MM-DD` |
-| Rosters | `GET /churches/{cid}/ministries/{mid}/suggestion`, `POST …/suggestion/approve {person_id, assignments}`, `GET /churches/{cid}/ministries/{mid}/roster?start=&end=` |
+| Weekly briefing | `GET /churches/{cid}/leaders/{person_id}/briefing?start=YYYY-MM-DD`, `POST /churches/{cid}/findings/{finding_id}/answer {person_id, answer: still_here \| later}` (the absence check-in) |
+| Rosters | `GET /churches/{cid}/ministries/{mid}/suggestion`, `POST …/suggestion/check {person_id, assignments}` (what the edited roster would newly flag; saves nothing), `POST …/suggestion/approve {person_id, assignments}`, `GET /churches/{cid}/ministries/{mid}/roster?start=&end=` |
 | Conflict huddle | `POST /churches/{cid}/findings/{finding_id}/huddle {person_id}`, `GET /churches/{cid}/huddles/{id}`, `POST …/huddles/{id}/choose {person_id, slot_id}`, `POST …/huddles/{id}/resolve {person_id, outcome}`, `POST …/huddles/{id}/accept-replacement {person_id, ministry_id}` (Resolve), `POST …/huddles/{id}/undo-replacement {person_id}` |
 | Volunteer chat (demo) | `GET /churches/{cid}/volunteers`, `GET /churches/{cid}/people/{pid}/chat` (Shepherd's side), `POST …/people/{pid}/chat {text}` (her message; the same handling Telegram will use) |
 | Reminders and notices | `POST /churches/{cid}/ministries/{mid}/reminders/draft`, approve through the approval queue; `GET /churches/{cid}/leaders/{pid}/notices`, `DELETE /churches/{cid}/notices/{id}?person_id=` |

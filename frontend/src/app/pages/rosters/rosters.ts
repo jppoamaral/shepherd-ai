@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ApiService } from '../../api/api.service';
-import type { Roster, Suggestion, SuggestionLine } from '../../api/types';
+import type { CheckWarning, Roster, Suggestion, SuggestionLine } from '../../api/types';
 import { Session } from '../../core/session';
 import { churchToday, monthDay } from '../../core/format';
 import { ExperienceBadge } from '../../ui/experience-badge';
@@ -58,6 +58,8 @@ export class RostersPage {
   protected readonly edits = signal<EditLine[]>([]);
   protected readonly working = signal(false);
   protected readonly approved = signal('');
+  /** What the checks would flag for the roster as edited; null until the leader presses Approve. */
+  protected readonly warnings = signal<CheckWarning[] | null>(null);
   protected readonly error = signal('');
 
   protected readonly monthDay = monthDay;
@@ -92,6 +94,7 @@ export class RostersPage {
     this.edits.set(s.lines.map((line) => ({ line, personId: line.person_id ?? null })));
     this.editing.set(true);
     this.approved.set('');
+    this.warnings.set(null);
   }
 
   protected options(e: EditLine): { id: string; name: string }[] {
@@ -108,6 +111,7 @@ export class RostersPage {
 
   protected swap(index: number, personId: string): void {
     this.edits.update((all) => all.map((e, i) => (i === index ? { ...e, personId: personId || null } : e)));
+    this.warnings.set(null);
   }
 
   protected approve(): void {
@@ -120,19 +124,34 @@ export class RostersPage {
     if (!chosen.length) return;
     this.working.set(true);
     this.error.set('');
+    const s = this.session;
+    const failed = (e: { error?: { detail?: string } }) => {
+      this.working.set(false);
+      this.error.set(e?.error?.detail ?? "That didn't work. Please try again.");
+    };
+    // First press: run the checks on the roster as edited. Warnings are shown, never a block.
+    if (this.warnings() === null) {
+      this.api.checkSuggestion(s.churchId(), s.ministryId(), s.personId(), chosen).subscribe({
+        next: (r) => {
+          this.warnings.set(r.warnings);
+          this.working.set(false);
+          if (!r.warnings.length) this.approve();
+        },
+        error: failed,
+      });
+      return;
+    }
     this.api
-      .approveSuggestion(this.session.churchId(), this.session.ministryId(), this.session.personId(), chosen)
+      .approveSuggestion(s.churchId(), s.ministryId(), s.personId(), chosen)
       .subscribe({
         next: () => {
           this.working.set(false);
           this.editing.set(false);
+          this.warnings.set(null);
           this.approved.set(`Roster approved: ${chosen.length} ${chosen.length === 1 ? 'place' : 'places'} recorded.`);
           this.load();
         },
-        error: (e) => {
-          this.working.set(false);
-          this.error.set(e?.error?.detail ?? "That didn't work. Please try again.");
-        },
+        error: failed,
       });
   }
 

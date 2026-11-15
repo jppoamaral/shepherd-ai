@@ -7,27 +7,11 @@ The simulator stands in for Telegram (no sign-in: it's a demo of the volunteer's
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, status
 
-from app.api.ask import AskLLMDep, TodayDep
-from app.api.routes import ReaderDep
-from app.channels.factory import channel_name
-from app.db.models import (
-    Church,
-    LeaderNotice,
-    Membership,
-    Ministry,
-    MinistryLeader,
-    Person,
-    SimulatorMessage,
-)
-from app.db.repositories.notices import NoticeWriter
-from app.domain.enums import MembershipStatus
+from app.api.deps import AskLLMDep, ReaderDep, TodayDep
 from app.domain.schemas import (
     ChatIn,
-    ChatMessageOut,
     ChatReplyOut,
     ChatThreadOut,
     NoticeOut,
@@ -36,9 +20,9 @@ from app.domain.schemas import (
     PutInOut,
     VolunteerOut,
 )
+from app.services import chat
 from app.services.briefing import church_today
-from app.services.errors import ApprovalError, NotAllowed, NotFound
-from app.services.inbound import UnknownPerson, handle_inbound, notice_put_in, notice_settled
+from app.services.notices import dismiss_notice, leader_notices
 from app.services.proposal_text import describe
 from app.services.put_in import put_in
 from app.services.reminders import draft_reminders
@@ -49,49 +33,13 @@ router = APIRouter(tags=["volunteer chat"])
 @router.get("/churches/{church_id}/volunteers")
 def volunteers(reader: ReaderDep) -> list[VolunteerOut]:
     """People on at least one team, for the demo's "open a volunteer's chat" picker."""
-    rows = reader.session.execute(
-        select(Person, Ministry.name)
-        .join(Membership, Membership.person_id == Person.id)
-        .join(Ministry, Ministry.id == Membership.ministry_id)
-        .where(Person.church_id == reader.church_id, Membership.status == MembershipStatus.ACTIVE)
-        .order_by(Person.name, Ministry.name)
-    ).all()
-    out: dict[uuid.UUID, VolunteerOut] = {}
-    for person, ministry in rows:
-        v = out.setdefault(
-            person.id,
-            VolunteerOut(
-                person_id=person.id,
-                name=person.name,
-                ministries=[],
-                connected=person.opted_in,
-                stopped=person.stopped,
-            ),
-        )
-        v.ministries.append(ministry)
-    return list(out.values())
+    return chat.volunteers(reader.session, reader.church_id)
 
 
 @router.get("/churches/{church_id}/people/{person_id}/chat")
 def thread(reader: ReaderDep, person_id: uuid.UUID) -> ChatThreadOut:
     """Shepherd's side of this one person's 1:1 chat. Never anyone else's messages."""
-    person = _person(reader.session, reader.church_id, person_id)
-    church = reader.session.get_one(Church, reader.church_id)
-    rows = reader.session.scalars(
-        select(SimulatorMessage)
-        .where(
-            SimulatorMessage.church_id == reader.church_id,
-            SimulatorMessage.person_id == person_id,
-        )
-        .order_by(SimulatorMessage.created_at, SimulatorMessage.id)
-    ).all()
-    return ChatThreadOut(
-        person_id=person.id,
-        name=person.name,
-        church=church.name,
-        channel=channel_name(church),
-        messages=[_out(m) for m in rows],
-    )
+    return chat.thread(reader.session, reader.church_id, person_id)
 
 
 @router.post("/churches/{church_id}/people/{person_id}/chat")
@@ -100,30 +48,9 @@ def inbound(
 ) -> ChatReplyOut:
     """A volunteer's message. Read by rules (and the model for free text); her answer is
     recorded through the approval queue; the bot's reply lands in her chat."""
-    session = reader.session
-    before = set(
-        session.scalars(
-            select(SimulatorMessage.id).where(
-                SimulatorMessage.church_id == reader.church_id,
-                SimulatorMessage.person_id == person_id,
-            )
-        )
-    )
-    try:
-        handle_inbound(session, reader.church_id, person_id, body.text, llm, today)
-    except UnknownPerson as error:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
-    session.commit()
-    new = session.scalars(
-        select(SimulatorMessage)
-        .where(
-            SimulatorMessage.church_id == reader.church_id,
-            SimulatorMessage.person_id == person_id,
-            SimulatorMessage.id.not_in(before) if before else SimulatorMessage.id.is_not(None),
-        )
-        .order_by(SimulatorMessage.created_at, SimulatorMessage.id)
-    ).all()
-    return ChatReplyOut(replies=[_out(m) for m in new])
+    replies = chat.receive(reader.session, reader.church_id, person_id, body.text, llm, today)
+    reader.session.commit()
+    return replies
 
 
 @router.post("/churches/{church_id}/ministries/{ministry_id}/reminders/draft")
@@ -139,93 +66,20 @@ def draft(reader: ReaderDep, ministry_id: uuid.UUID, today: TodayDep) -> list[Pr
 @router.get("/churches/{church_id}/leaders/{person_id}/notices")
 def notices(reader: ReaderDep, person_id: uuid.UUID) -> list[NoticeOut]:
     """What volunteers asked Shepherd to pass on, for the ministries this person leads."""
-    led = set(
-        reader.session.scalars(
-            select(MinistryLeader.ministry_id).where(
-                MinistryLeader.church_id == reader.church_id, MinistryLeader.person_id == person_id
-            )
-        )
-    )
-    rows = reader.session.execute(
-        select(LeaderNotice, Person.name)
-        .join(Person, Person.id == LeaderNotice.about_person_id)
-        .where(LeaderNotice.church_id == reader.church_id, LeaderNotice.ministry_id.in_(led))
-        .order_by(LeaderNotice.created_at)
-    ).all()
-    out = []
-    for n, name in rows:
-        settled, update = notice_settled(reader.session, n)
-        out.append(
-            NoticeOut(
-                id=n.id,
-                ministry_id=n.ministry_id,
-                about=name,
-                kind=n.kind,
-                text=n.text,
-                note=n.note,
-                at=n.created_at,
-                settled=settled,
-                update=update,
-                put_in=None if settled else notice_put_in(reader.session, n, name),
-            )
-        )
-    return out
+    return leader_notices(reader.session, reader.church_id, person_id)
 
 
 @router.delete("/churches/{church_id}/notices/{notice_id}", status_code=status.HTTP_204_NO_CONTENT)
 def dismiss(reader: ReaderDep, notice_id: uuid.UUID, person_id: uuid.UUID) -> None:
     """Dismiss a notice: it's deleted, including any personal note it carried."""
-    session = reader.session
-    notice = session.scalar(
-        select(LeaderNotice).where(
-            LeaderNotice.church_id == reader.church_id, LeaderNotice.id == notice_id
-        )
-    )
-    if notice is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "notice not found")
-    leads = session.scalar(
-        select(MinistryLeader.id).where(
-            MinistryLeader.church_id == reader.church_id,
-            MinistryLeader.ministry_id == notice.ministry_id,
-            MinistryLeader.person_id == person_id,
-        )
-    )
-    if leads is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(NotAllowed("not your ministry")))
-    NoticeWriter(session, reader.church_id).dismiss(notice_id)
-    session.commit()
-
-
-def _person(session: Session, church_id: uuid.UUID, person_id: uuid.UUID) -> Person:
-    person = session.scalar(
-        select(Person).where(Person.church_id == church_id, Person.id == person_id)
-    )
-    if person is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "person not found")
-    return person
-
-
-def _out(m: SimulatorMessage) -> ChatMessageOut:
-    return ChatMessageOut(
-        id=m.id, body=m.body, buttons=m.buttons, at=m.created_at, approved=m.message_id is not None
-    )
+    dismiss_notice(reader.session, reader.church_id, notice_id, person_id)
+    reader.session.commit()
 
 
 @router.post("/churches/{church_id}/notices/{notice_id}/put-in")
 def put_in_from_notice(reader: ReaderDep, notice_id: uuid.UUID, body: PutInIn) -> PutInOut:
     """Someone said yes when asked: the leader's tap puts them in (a swap if they were asked
     to take someone's place). Approved and audited through ApprovalService."""
-    session = reader.session
-    try:
-        result = put_in(session, reader.church_id, notice_id, body.person_id)
-    except NotFound as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
-    except NotAllowed as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
-    except ApprovalError as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
-    session.commit()
+    result = put_in(reader.session, reader.church_id, notice_id, body.person_id)
+    reader.session.commit()
     return result

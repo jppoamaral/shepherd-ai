@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.api.ask import ask_llm_dependency, today_dependency
+from app.api.deps import ask_llm_dependency, today_dependency
 from app.channels.base import OutgoingMessage
 from app.channels.simulator import SimulatorChannel
 from app.db.models import (

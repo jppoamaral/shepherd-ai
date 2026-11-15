@@ -1,31 +1,301 @@
 {
   "v": 3,
-  "createdOnFiles": { "v": 1, "at": "2026-10-08T20:08:00Z" },
-  "title": "Shepherd Leader App",
-  "launch": { "view": "canvas" },
+  "attachments": {},
   "boards": {
-    "Main.dc.html": { "x": 0, "y": 0, "w": 390, "h": 2300, "title": "Home · briefing (mobile)", "is_interactive": true },
-    "Home-Desktop.dc.html": { "x": 470, "y": 0, "w": 1280, "h": 1320, "title": "Home · briefing (desktop)", "expand": "fill" },
-    "Home-Empty-Mobile.dc.html": { "x": 1830, "y": 0, "w": 390, "h": 1080, "title": "Home · all clear (mobile)" },
-    "Send-Error-Mobile.dc.html": { "x": 2300, "y": 0, "w": 390, "h": 1200, "title": "Review and send · 1 failed (mobile)" },
-
-    "Roster-Mobile.dc.html": { "x": 0, "y": 2750, "w": 390, "h": 1750, "title": "Rosters · two paths (mobile)", "is_interactive": true },
-    "Roster-Edit-Mobile.dc.html": { "x": 470, "y": 2750, "w": 390, "h": 2150, "title": "Rosters · editing (mobile)" },
-    "Roster-Loading-Mobile.dc.html": { "x": 940, "y": 2750, "w": 390, "h": 1060, "title": "Rosters · drafting (mobile)" },
-    "Roster-Desktop.dc.html": { "x": 1410, "y": 2750, "w": 1280, "h": 1400, "title": "Rosters · side by side (desktop)", "expand": "fill" },
-
-    "Huddle-Mobile.dc.html": { "x": 0, "y": 5400, "w": 390, "h": 1800, "title": "Huddle · pick a time (mobile)", "is_interactive": true },
-    "Huddle-Done-Mobile.dc.html": { "x": 470, "y": 5400, "w": 390, "h": 1650, "title": "Huddle · confirmed and record (mobile)" },
-    "Huddle-Desktop.dc.html": { "x": 940, "y": 5400, "w": 1280, "h": 1450, "title": "Huddle · full flow (desktop)", "expand": "fill" },
-
-    "Memory-Mobile.dc.html": { "x": 0, "y": 7700, "w": 390, "h": 2150, "title": "Memory (mobile)" },
-    "Memory-Desktop.dc.html": { "x": 470, "y": 7700, "w": 1280, "h": 1250, "title": "Memory (desktop)", "expand": "fill" }
+    "Home-Desktop.dc.html": {
+      "expand": "fill",
+      "h": 1320,
+      "title": "Home · briefing (desktop)",
+      "w": 1280,
+      "x": 470,
+      "y": 0
+    },
+    "Home-Empty-Mobile.dc.html": {
+      "h": 1080,
+      "title": "Home · all clear (mobile)",
+      "w": 390,
+      "x": 1830,
+      "y": 0
+    },
+    "Huddle-Desktop.dc.html": {
+      "expand": "fill",
+      "h": 1450,
+      "title": "Huddle · full flow (desktop)",
+      "w": 1280,
+      "x": 940,
+      "y": 7350
+    },
+    "Huddle-Done-Mobile.dc.html": {
+      "h": 1650,
+      "title": "Huddle · confirmed and record (mobile)",
+      "w": 390,
+      "x": 470,
+      "y": 7350
+    },
+    "Huddle-Mobile.dc.html": {
+      "h": 1800,
+      "is_interactive": true,
+      "title": "Huddle · pick a time (mobile)",
+      "w": 390,
+      "x": 0,
+      "y": 7350
+    },
+    "Main.dc.html": {
+      "h": 2300,
+      "is_interactive": true,
+      "title": "Home · briefing (mobile)",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Memory-Desktop.dc.html": {
+      "expand": "fill",
+      "h": 1250,
+      "title": "Memory (desktop)",
+      "w": 1280,
+      "x": 470,
+      "y": 9650
+    },
+    "Memory-Mobile.dc.html": {
+      "h": 2150,
+      "title": "Memory (mobile)",
+      "w": 390,
+      "x": 0,
+      "y": 9650
+    },
+    "Roster-Desktop.dc.html": {
+      "expand": "fill",
+      "h": 1400,
+      "title": "Rosters · side by side (desktop)",
+      "w": 1280,
+      "x": 1410,
+      "y": 4700
+    },
+    "Roster-Edit-Mobile.dc.html": {
+      "h": 2150,
+      "title": "Rosters · editing (mobile)",
+      "w": 390,
+      "x": 470,
+      "y": 4700
+    },
+    "Roster-Loading-Mobile.dc.html": {
+      "h": 1060,
+      "title": "Rosters · drafting (mobile)",
+      "w": 390,
+      "x": 940,
+      "y": 4700
+    },
+    "Roster-Mobile.dc.html": {
+      "h": 1750,
+      "is_interactive": true,
+      "title": "Rosters · two paths (mobile)",
+      "w": 390,
+      "x": 0,
+      "y": 4700
+    },
+    "Send-Error-Mobile.dc.html": {
+      "h": 1200,
+      "title": "Review and send · 1 failed (mobile)",
+      "w": 390,
+      "x": 2300,
+      "y": 0
+    },
+    "Ask-Start-Mobile.dc.html": {
+      "x": 0,
+      "y": 2750,
+      "w": 390,
+      "h": 1080,
+      "title": "Ask · start (mobile)"
+    },
+    "Ask-Mobile.dc.html": {
+      "x": 470,
+      "y": 2750,
+      "w": 390,
+      "h": 1500,
+      "title": "Ask · conversation (mobile)"
+    },
+    "Ask-Limits-Mobile.dc.html": {
+      "x": 940,
+      "y": 2750,
+      "w": 390,
+      "h": 1300,
+      "title": "Ask · can't help, thinking, failed (mobile)"
+    },
+    "Ask-Desktop.dc.html": {
+      "x": 1410,
+      "y": 2750,
+      "w": 1280,
+      "h": 1250,
+      "title": "Ask · conversation (desktop)",
+      "expand": "fill"
+    },
+    "Vol-01-Connect.dc.html": {
+      "x": 0,
+      "y": 12400,
+      "w": 390,
+      "h": 844,
+      "title": "Volunteer · connect"
+    },
+    "Vol-01b-Connect-Check.dc.html": {
+      "x": 470,
+      "y": 12400,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · connect, two matches"
+    },
+    "Vol-02-Reminder.dc.html": {
+      "x": 940,
+      "y": 12400,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · reminder with buttons"
+    },
+    "Vol-02b-Reminder-Yes.dc.html": {
+      "x": 1410,
+      "y": 12400,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · reminder answered"
+    },
+    "Vol-02c-Reminder-Text.dc.html": {
+      "x": 1880,
+      "y": 12400,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · reminder without buttons"
+    },
+    "Vol-03-Decline.dc.html": {
+      "x": 2350,
+      "y": 12400,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · can't make it, personal reason"
+    },
+    "Vol-04-Blockout.dc.html": {
+      "x": 2820,
+      "y": 12400,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · away dates"
+    },
+    "Vol-05-Vague.dc.html": {
+      "x": 0,
+      "y": 13700,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · vague reply"
+    },
+    "Vol-06-Preference.dc.html": {
+      "x": 470,
+      "y": 13700,
+      "w": 390,
+      "h": 844,
+      "title": "Volunteer · sharing a preference"
+    },
+    "Vol-07-What-I-Know.dc.html": {
+      "x": 940,
+      "y": 13700,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · what do you remember?"
+    },
+    "Vol-08-Stop.dc.html": {
+      "x": 1410,
+      "y": 13700,
+      "w": 390,
+      "h": 844,
+      "title": "Volunteer · stop"
+    },
+    "Vol-09-Text-Fallback.dc.html": {
+      "x": 1880,
+      "y": 13700,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · plain text fallback"
+    },
+    "Vol-10-Week.dc.html": {
+      "x": 2350,
+      "y": 13700,
+      "w": 390,
+      "h": 1034,
+      "title": "Volunteer · a week of messages"
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-08T20:08:00Z",
+    "v": 1
+  },
+  "designSystems": [
+    {
+      "artifact": "https://claude.ai/code/artifact/6b8c8190-d1e1-4a4d-9cb3-ed07060e8728",
+      "copiedAt": "2026-10-08T20:12:00Z",
+      "namespace": "shepherd",
+      "title": "Shepherd",
+      "version": "1791490140-4837"
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "n1": {
+      "kind": "title1",
+      "maxW": 2690,
+      "text": "1 · Weekly briefing and approval queue",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "n2": {
+      "kind": "title1",
+      "maxW": 2690,
+      "text": "3 · Roster suggestions",
+      "w": 240,
+      "x": 0,
+      "y": 4400
+    },
+    "n3": {
+      "kind": "title1",
+      "maxW": 2220,
+      "text": "4 · Conflict huddle",
+      "w": 240,
+      "x": 0,
+      "y": 7050
+    },
+    "n4": {
+      "kind": "title1",
+      "maxW": 1750,
+      "text": "5 · Memory",
+      "w": 240,
+      "x": 0,
+      "y": 9350
+    },
+    "n5": {
+      "kind": "title1",
+      "maxW": 2690,
+      "text": "2 · Ask Shepherd",
+      "w": 240,
+      "x": 0,
+      "y": 2450
+    },
+    "n6": {
+      "kind": "title1",
+      "maxW": 3210,
+      "text": "6 · Volunteer side: Anna's private chat with Shepherd",
+      "w": 240,
+      "x": 0,
+      "y": 12100
+    }
   },
   "order": [
     "Main.dc.html",
     "Home-Desktop.dc.html",
     "Home-Empty-Mobile.dc.html",
     "Send-Error-Mobile.dc.html",
+    "Ask-Start-Mobile.dc.html",
+    "Ask-Mobile.dc.html",
+    "Ask-Limits-Mobile.dc.html",
+    "Ask-Desktop.dc.html",
     "Roster-Mobile.dc.html",
     "Roster-Edit-Mobile.dc.html",
     "Roster-Loading-Mobile.dc.html",
@@ -34,21 +304,21 @@
     "Huddle-Done-Mobile.dc.html",
     "Huddle-Desktop.dc.html",
     "Memory-Mobile.dc.html",
-    "Memory-Desktop.dc.html"
+    "Memory-Desktop.dc.html",
+    "Vol-01-Connect.dc.html",
+    "Vol-01b-Connect-Check.dc.html",
+    "Vol-02-Reminder.dc.html",
+    "Vol-02b-Reminder-Yes.dc.html",
+    "Vol-02c-Reminder-Text.dc.html",
+    "Vol-03-Decline.dc.html",
+    "Vol-04-Blockout.dc.html",
+    "Vol-05-Vague.dc.html",
+    "Vol-06-Preference.dc.html",
+    "Vol-07-What-I-Know.dc.html",
+    "Vol-08-Stop.dc.html",
+    "Vol-09-Text-Fallback.dc.html",
+    "Vol-10-Week.dc.html"
   ],
-  "notes": {
-    "n1": { "x": 0, "y": -300, "text": "1 · Weekly briefing and approval queue", "kind": "title1", "maxW": 2690 },
-    "n2": { "x": 0, "y": 2450, "text": "2 · Roster suggestions", "kind": "title1", "maxW": 2690 },
-    "n3": { "x": 0, "y": 5100, "text": "3 · Conflict huddle", "kind": "title1", "maxW": 2220 },
-    "n4": { "x": 0, "y": 7400, "text": "4 · Memory", "kind": "title1", "maxW": 1750 }
-  },
-  "designSystems": [
-    {
-      "title": "Shepherd",
-      "namespace": "shepherd",
-      "artifact": "https://claude.ai/code/artifact/6b8c8190-d1e1-4a4d-9cb3-ed07060e8728",
-      "version": "1791490140-4837",
-      "copiedAt": "2026-10-08T20:12:00Z"
-    }
-  ]
+  "pages": [],
+  "title": "Shepherd Leader App"
 }

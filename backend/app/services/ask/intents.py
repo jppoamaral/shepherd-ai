@@ -12,9 +12,7 @@ the conversation is kept.
 import re
 import uuid
 from collections import defaultdict
-from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,28 +20,18 @@ from sqlalchemy.orm import Session
 from app.db.models import (
     Assignment,
     Blockout,
-    Church,
-    Finding,
     Gathering,
-    GatheringType,
-    Membership,
     MemoryItem,
-    Ministry,
-    Person,
     Preference,
-    Proposal,
-    Role,
-    RoleSkill,
 )
-from app.db.repositories.proposals import ProposalRepository
 from app.domain.ask import ParsedQuestion
 from app.domain.enums import (
     AskIntent,
     AssignmentStatus,
-    Experience,
     FindingType,
-    MembershipStatus,
-    ProposalStatus,
+)
+from app.domain.proposals import (
+    MemoryPayload,
 )
 from app.domain.schemas import (
     AskAction,
@@ -51,23 +39,39 @@ from app.domain.schemas import (
     AskDraft,
     AskIn,
     AskPerson,
-    AskSendIn,
-    AskSendOut,
     AskStart,
-    RosterGathering,
 )
 from app.llm.client import LLMClient
 from app.llm.prompts.ask import PARSE
-from app.services import reminders, serve_ask
-from app.services.approval import ApprovalService
-from app.services.briefing import briefing, church_today, roster
-from app.services.huddle_replacement import EXPERIENCE_RANK, free_candidates, unavailable_on
-from app.services.memory import is_leader, pending_memory_proposals, private_reason
+from app.services.ask.queries import (
+    LOOKAHEAD_DAYS,
+    MAX_PEOPLE,
+    Context,
+    TeamMember,
+    blocked_on,
+    busy_people,
+    experience_rank,
+    facts_for_model,
+    gatherings_on,
+    load_context,
+    match_people,
+    named_in,
+    next_assignment,
+    next_day,
+    open_overlap,
+    parse_date,
+    place_of,
+    why_cant_send,
+)
+from app.services.briefing import briefing
+from app.services.huddle_replacement import free_candidates
+from app.services.memory import pending_memory_proposals, private_reason
 from app.services.profile import format_time
-from app.services.reminders import already_reminded, reminder_text, still_on_roster
-
-LOOKAHEAD_DAYS = 28
-MAX_PEOPLE = 6
+from app.services.reminders import (
+    already_reminded,
+    reminder_text,
+)
+from app.services.text import and_list, count_of, long_day, short_day
 
 # "Why is Emily away?" asks for a personal reason even without a sensitive word.
 _WHY_AWAY = re.compile(
@@ -96,42 +100,6 @@ NEEDS_PERSON = {
 }
 
 
-class AskNotAllowed(PermissionError):
-    pass
-
-
-class AskNotFound(LookupError):
-    pass
-
-
-@dataclass
-class TeamMember:
-    person_id: uuid.UUID
-    name: str
-    nicknames: list[str]
-    experience: Experience | None = None
-    role_ids: set[uuid.UUID] = field(default_factory=set)
-
-    @property
-    def first(self) -> str:
-        return self.name.split(" ")[0]
-
-
-@dataclass
-class Context:
-    session: Session
-    church_id: uuid.UUID
-    ministry: Ministry
-    leader: Person
-    tz: ZoneInfo
-    today: date
-    team: dict[uuid.UUID, TeamMember]
-
-    @property
-    def leader_first(self) -> str:
-        return self.leader.name.split(" ")[0]
-
-
 # ---------------------------------------------------------------------------
 # Entry points
 # ---------------------------------------------------------------------------
@@ -144,7 +112,7 @@ def ask_start(
     person_id: uuid.UUID,
     today: date | None = None,
 ) -> AskStart:
-    ctx = _context(session, church_id, ministry_id, person_id, today)
+    ctx = load_context(session, church_id, ministry_id, person_id, today)
     return AskStart(
         ministry=ctx.ministry.name,
         greeting=f"Hi {ctx.leader_first}. What can I help with?",
@@ -160,7 +128,7 @@ def ask(
     llm: LLMClient | None,
     today: date | None = None,
 ) -> AskAnswer:
-    ctx = _context(session, church_id, ministry_id, body.person_id, today)
+    ctx = load_context(session, church_id, ministry_id, body.person_id, today)
     if body.intent is not None:
         return _answer(
             ctx,
@@ -173,7 +141,7 @@ def ask(
 
     question = (body.question or "").strip()
     if private_reason(question) or _WHY_AWAY.search(question):
-        named = _named_in(ctx, question)
+        named = named_in(ctx, question)
         return _private(ctx, named[0] if len(named) == 1 else None)
     if _GREETING.match(question):
         return AskAnswer(
@@ -195,11 +163,11 @@ def ask(
             actions=_suggestions(ctx),
         )
 
-    parsed = llm.complete(system=PARSE, user=_facts(ctx, question), schema=ParsedQuestion)
-    on = _parse_date(parsed.date)
+    parsed = llm.complete(system=PARSE, user=facts_for_model(ctx, question), schema=ParsedQuestion)
+    on = parse_date(parsed.date)
     person: TeamMember | None = None
     if parsed.person:
-        matches = _match(ctx, parsed.person)
+        matches = match_people(ctx, parsed.person)
         if parsed.intent is AskIntent.PRIVATE:
             return _private(ctx, matches[0] if len(matches) == 1 else None)
         if not matches:
@@ -225,176 +193,6 @@ def ask(
             )
         person = matches[0]
     return _answer(ctx, parsed.intent, person.person_id if person else None, on, None)
-
-
-def send_drafts(
-    session: Session,
-    church_id: uuid.UUID,
-    ministry_id: uuid.UUID,
-    body: AskSendIn,
-    today: date | None = None,
-) -> AskSendOut:
-    """The leader tapped Send on drafts they read (and maybe edited). That tap is the
-    approval: one proposal per kind, approved and sent by ApprovalService, as on Home."""
-    ctx = _context(session, church_id, ministry_id, body.person_id, today)
-    upcoming = roster(
-        session, church_id, ministry_id, ctx.today, ctx.today + timedelta(days=LOOKAHEAD_DAYS)
-    )
-    places = {
-        (role.role_id, g.gathering_id): role
-        for g in (upcoming.gatherings if upcoming else [])
-        for role in g.roles
-    }
-    asks: list[dict[str, str]] = []
-    reminder_items: dict[uuid.UUID, list[dict[str, str]]] = defaultdict(list)
-    skipped: list[str] = []
-    names: dict[uuid.UUID, str] = {}
-    for d in body.drafts:
-        person = session.scalar(
-            select(Person).where(Person.church_id == church_id, Person.id == d.to_person_id)
-        )
-        place = places.get((d.role_id, d.gathering_id))
-        if person is None or place is None:
-            raise AskNotFound("that place isn't on this ministry's rosters in the next 4 weeks")
-        first = person.name.split(" ")[0]
-        names[person.id] = first
-        item = {"person_id": str(person.id), "body": d.body.strip()}
-        if d.kind == "ask":
-            if person.id not in ctx.team:
-                raise AskNotFound(f"{person.name} isn't on the {ctx.ministry.name} team")
-            ask_item = {**item, "gathering_id": str(d.gathering_id), "role_id": str(d.role_id)}
-            if d.replaces_assignment_id is not None:
-                taken = _place(ctx, d.replaces_assignment_id)
-                if taken is None or (taken.gathering_id, taken.role_id) != (
-                    d.gathering_id,
-                    d.role_id,
-                ):
-                    raise AskNotFound("that place has changed since the draft")
-                ask_item["replaces_assignment_id"] = str(taken.id)
-            asks.append(ask_item)
-            continue
-        assignment_id = d.assignment_id
-        if assignment_id is None or not any(p.assignment_id == assignment_id for p in place.people):
-            raise AskNotFound(f"{person.name} isn't on that roster")
-        if not still_on_roster(
-            session, church_id, {"assignment_id": str(assignment_id), "person_id": str(person.id)}
-        ):
-            skipped.append(f"{first} is no longer on that roster.")
-            continue
-        if already_reminded(session, church_id, assignment_id):
-            skipped.append(f"{first} already has a reminder for this.")
-            continue
-        reminder_items[d.gathering_id].append({**item, "assignment_id": str(assignment_id)})
-
-    repo = ProposalRepository(session, church_id)
-    service = ApprovalService(session)
-    results = []
-    proposals = [
-        repo.create(
-            type=reminders.PROPOSAL_TYPE,
-            payload={
-                "ministry_id": str(ministry_id),
-                "gathering_id": str(gathering_id),
-                "messages": items,
-                "buttons": reminders.BUTTONS,
-            },
-            created_by_agent="ask",
-        )
-        for gathering_id, items in reminder_items.items()
-    ]
-    if asks:
-        proposals.append(
-            repo.create(
-                type=serve_ask.PROPOSAL_TYPE,
-                payload={"ministry_id": str(ministry_id), "messages": asks},
-                created_by_agent="ask",
-            )
-        )
-    for proposal in proposals:
-        service.approve(church_id, proposal.id, ctx.leader.id)
-        results.append(proposal)
-    _close_covered_reminders(ctx, set(map(str, reminder_items)))
-
-    sent: list[uuid.UUID] = []
-    for proposal in results:
-        for item in proposal.payload["messages"]:
-            person = session.get_one(Person, uuid.UUID(item["person_id"]))
-            first = names[person.id]
-            if person.stopped:
-                skipped.append(f"{first} turned messages off.")
-            elif not person.opted_in:
-                skipped.append(f"{first} hasn't connected to chat yet.")
-            else:
-                sent.append(person.id)
-    return AskSendOut(
-        text=_sent_text([names[p] for p in sent], skipped), sent=sent, skipped=skipped
-    )
-
-
-def _close_covered_reminders(ctx: Context, gathering_ids: set[str]) -> None:
-    """Home's pending reminders for a service Ask just covered would send nothing: close
-    them (rejected by the leader, audited) instead of leaving an empty card."""
-    service = ApprovalService(ctx.session)
-    for p in ctx.session.scalars(
-        select(Proposal).where(
-            Proposal.church_id == ctx.church_id,
-            Proposal.type == reminders.PROPOSAL_TYPE,
-            Proposal.status == ProposalStatus.PENDING,
-        )
-    ):
-        if p.payload.get("ministry_id") != str(ctx.ministry.id):
-            continue
-        if p.payload.get("gathering_id") not in gathering_ids:
-            continue
-        if all(
-            not still_on_roster(ctx.session, ctx.church_id, m)
-            or already_reminded(ctx.session, ctx.church_id, uuid.UUID(m["assignment_id"]))
-            for m in p.payload["messages"]
-        ):
-            service.reject(ctx.church_id, p.id, ctx.leader.id)
-
-
-def _sent_text(sent: list[str], skipped: list[str]) -> str:
-    done = f"Sent to {_and(sent)}, 1:1." if sent else "Nothing was sent."
-    return " ".join([done, *skipped])
-
-
-@dataclass
-class Place:
-    id: uuid.UUID
-    gathering: Gathering
-    gathering_id: uuid.UUID
-    role_id: uuid.UUID
-    holder: str  # who has it now
-
-
-def _place(ctx: Context, assignment_id: uuid.UUID) -> Place | None:
-    """A place on this ministry's roster that someone could take over (not declined)."""
-    row = ctx.session.execute(
-        select(Assignment, Gathering, Person.name)
-        .join(Gathering, Gathering.id == Assignment.gathering_id)
-        .join(Person, Person.id == Assignment.person_id)
-        .where(
-            Assignment.church_id == ctx.church_id,
-            Assignment.id == assignment_id,
-            Assignment.ministry_id == ctx.ministry.id,
-            Assignment.status != AssignmentStatus.DECLINED,
-        )
-    ).first()
-    if row is None:
-        return None
-    a, g, holder = row
-    return Place(a.id, g, g.id, a.role_id, holder)
-
-
-def _why_not(ctx: Context, person_id: uuid.UUID, first: str) -> str | None:
-    """Why Shepherd can't send to this person, so the leader copies the message instead."""
-    person = ctx.session.get_one(Person, person_id)
-    if person.stopped:
-        return f"{first} turned messages off. Copy it and send it yourself."
-    if not person.opted_in:
-        return f"{first} hasn't connected to chat yet. Copy it and send it yourself."
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -489,42 +287,42 @@ def _needs_me(ctx: Context) -> AskAnswer:
 
 
 def _free_on(ctx: Context, on: date | None) -> AskAnswer:
-    day = on or _next_day(ctx)
+    day = on or next_day(ctx)
     if day is None:
         return _nothing_scheduled(ctx, AskIntent.FREE_ON)
-    gatherings = _gatherings_on(ctx, day)
+    gatherings = gatherings_on(ctx, day)
     if not gatherings:
         return AskAnswer(
             intent=AskIntent.FREE_ON,
-            text=f"{ctx.ministry.name} has nothing on {_day(day)}.",
+            text=f"{ctx.ministry.name} has nothing on {long_day(day)}.",
             source=f"From the {ctx.ministry.name} calendar",
         )
     ids = [p for p in ctx.team if p != ctx.leader.id]  # never suggest the leader asking
-    blocked = _blocked_on(ctx, ids, day)
+    blocked = blocked_on(ctx, ids, day)
     free_for: dict[uuid.UUID, list[str]] = defaultdict(list)
     for g in gatherings:
-        busy = _busy(ctx, ids, g.start_at, g.end_at)
+        busy = busy_people(ctx, ids, g.start_at, g.end_at)
         for person_id in ids:
             if person_id not in busy and person_id not in blocked:
                 free_for[person_id].append(g.name)
     free = sorted(
         (ctx.team[p] for p in free_for),
-        key=lambda m: (_rank(m.experience), m.name),
+        key=lambda m: (experience_rank(m.experience), m.name),
     )
     shown = free[:MAX_PEOPLE]
     notes = []
     if len(free) > len(shown):
         notes.append(f"{len(free) - len(shown)} more on your team are free too.")
     if left_out := sorted(ctx.team[p].first for p in blocked):
-        notes.append(f"{_and(left_out)} can't make {_day(day)}, so I left them out.")
+        notes.append(f"{and_list(left_out)} can't make {long_day(day)}, so I left them out.")
     n = len(free)
     return AskAnswer(
         intent=AskIntent.FREE_ON,
         text=(
-            f"Nobody on your team is free on {_day(day)}."
+            f"Nobody on your team is free on {long_day(day)}."
             if n == 0
-            else f"{_count(n, 'person', 'people')} on your team {'is' if n == 1 else 'are'} "
-            f"free on {_day(day)}."
+            else f"{count_of(n, 'person', 'people')} on your team {'is' if n == 1 else 'are'} "
+            f"free on {long_day(day)}."
         ),
         people=[
             AskPerson(
@@ -534,21 +332,21 @@ def _free_on(ctx: Context, on: date | None) -> AskAnswer:
                 detail=(
                     "Free all day"
                     if len(gatherings) > 1 and len(free_for[m.person_id]) == len(gatherings)
-                    else f"Free for the {_and(free_for[m.person_id])}"
+                    else f"Free for the {and_list(free_for[m.person_id])}"
                 ),
             )
             for m in shown
         ],
         notes=notes,
-        source=f"From the {_short(day)} roster and availability",
-        looked_at=[f"{_short(day)} rosters, all ministries", "Availability for your team"],
+        source=f"From the {short_day(day)} roster and availability",
+        looked_at=[f"{short_day(day)} rosters, all ministries", "Availability for your team"],
     )
 
 
 def _replace(ctx: Context, person: TeamMember, on: date | None) -> AskAnswer:
-    place = _next_assignment(ctx, person.person_id, on)
+    place = next_assignment(ctx, person.person_id, on)
     if place is None:
-        when = f" on {_day(on)}" if on else " in the next 4 weeks"
+        when = f" on {long_day(on)}" if on else " in the next 4 weeks"
         return AskAnswer(
             intent=AskIntent.REPLACE,
             text=f"{person.first} isn't on the {ctx.ministry.name} roster{when}.",
@@ -562,11 +360,11 @@ def _replace(ctx: Context, person: TeamMember, on: date | None) -> AskAnswer:
     )
     in_role = [m.person_id for m in ctx.team.values() if role.id in m.role_ids]
     blocked = sorted(
-        ctx.team[p].first for p in _blocked_on(ctx, in_role, day) if p != person.person_id
+        ctx.team[p].first for p in blocked_on(ctx, in_role, day) if p != person.person_id
     )
     notes = []
     if blocked:
-        notes.append(f"{_and(blocked)} can't make {_short(day)}, so I left them out.")
+        notes.append(f"{and_list(blocked)} can't make {short_day(day)}, so I left them out.")
     actions: list[AskAction] = []
     if candidates:
         best = candidates[0]
@@ -582,18 +380,18 @@ def _replace(ctx: Context, person: TeamMember, on: date | None) -> AskAnswer:
                 replaces_assignment_id=assignment.id,
             )
         )
-    if finding_id := _open_overlap(ctx, assignment.id):
+    if finding_id := open_overlap(ctx, assignment.id):
         actions.append(
             AskAction(label="Open the huddle", kind="link", href=f"/huddle/{finding_id}")
         )
     n = len(candidates)
-    where = f"the {gathering_name} on {_short(day)}"
+    where = f"the {gathering_name} on {short_day(day)}"
     return AskAnswer(
         intent=AskIntent.REPLACE,
         text=(
             f"Nobody else on your team who serves as {role.name} is free for {where}."
             if n == 0
-            else f"{_count(n, 'person', 'people')} on your team {'is' if n == 1 else 'are'} "
+            else f"{count_of(n, 'person', 'people')} on your team {'is' if n == 1 else 'are'} "
             f"free for {where}."
         ),
         people=[
@@ -607,8 +405,11 @@ def _replace(ctx: Context, person: TeamMember, on: date | None) -> AskAnswer:
         ],
         notes=notes,
         actions=actions,
-        source=f"From the {_short(day)} roster and availability",
-        looked_at=[f"{_short(day)} rosters, all ministries", f"Availability for your {role.name}s"],
+        source=f"From the {short_day(day)} roster and availability",
+        looked_at=[
+            f"{short_day(day)} rosters, all ministries",
+            f"Availability for your {role.name}s",
+        ],
     )
 
 
@@ -666,7 +467,7 @@ def _serving_a_lot(ctx: Context) -> AskAnswer:
     n = len(busy)
     return AskAnswer(
         intent=AskIntent.SERVING_A_LOT,
-        text=f"{_count(n, 'person', 'people')} on your team "
+        text=f"{count_of(n, 'person', 'people')} on your team "
         f"{'serves' if n == 1 else 'serve'} more than once this week.",
         people=people[:MAX_PEOPLE],
         notes=notes,
@@ -677,18 +478,18 @@ def _serving_a_lot(ctx: Context) -> AskAnswer:
 
 
 def _draft_reminder(ctx: Context, on: date | None) -> AskAnswer:
-    day = on or _next_day(ctx)
+    day = on or next_day(ctx)
     if day is None:
         return _nothing_scheduled(ctx, AskIntent.DRAFT_REMINDER)
     drafts = []
-    for g in _gatherings_on(ctx, day):
+    for g in gatherings_on(ctx, day):
         local = g.start_at.astimezone(ctx.tz)
         for role in g.roles:
             for p in role.people:
                 if p.status is AssignmentStatus.DECLINED or p.person_id == ctx.leader.id:
                     continue
                 first = p.name.split(" ")[0]
-                why_not = _why_not(ctx, p.person_id, first)
+                why_not = why_cant_send(ctx, p.person_id, first)
                 if why_not is None and already_reminded(
                     ctx.session, ctx.church_id, p.assignment_id
                 ):
@@ -706,21 +507,21 @@ def _draft_reminder(ctx: Context, on: date | None) -> AskAnswer:
                         why_not=why_not,
                     )
                 )
-    source = f"From your {ctx.ministry.name} roster for {_short(day)}"
+    source = f"From your {ctx.ministry.name} roster for {short_day(day)}"
     if not drafts:
         return AskAnswer(
             intent=AskIntent.DRAFT_REMINDER,
-            text=f"Nobody is on the {ctx.ministry.name} roster for {_day(day)} yet.",
+            text=f"Nobody is on the {ctx.ministry.name} roster for {long_day(day)} yet.",
             source=source,
         )
     n = len(drafts)
     return AskAnswer(
         intent=AskIntent.DRAFT_REMINDER,
-        text=f"Here {'is a reminder' if n == 1 else f'are {n} reminders'} for {_day(day)} "
+        text=f"Here {'is a reminder' if n == 1 else f'are {n} reminders'} for {long_day(day)} "
         "for you to look over.",
         drafts=drafts,
         source=source,
-        looked_at=[f"{_short(day)} {ctx.ministry.name} roster"],
+        looked_at=[f"{short_day(day)} {ctx.ministry.name} roster"],
     )
 
 
@@ -732,11 +533,11 @@ def _draft_message(
     replaces: uuid.UUID | None = None,
 ) -> AskAnswer:
     # Asking someone to take another person's place: that exact place, if it still stands.
-    taken = _place(ctx, replaces) if replaces else None
+    taken = place_of(ctx, replaces) if replaces else None
     if taken is not None:
         on, role_id = taken.gathering.start_at.astimezone(ctx.tz).date(), taken.role_id
-    day = on or _next_day(ctx)
-    gatherings = _gatherings_on(ctx, day) if day else []
+    day = on or next_day(ctx)
+    gatherings = gatherings_on(ctx, day) if day else []
     if day is None or not gatherings:
         return _nothing_scheduled(ctx, AskIntent.DRAFT_MESSAGE)
     gathering = next(
@@ -752,13 +553,13 @@ def _draft_message(
     local = gathering.start_at.astimezone(ctx.tz)
     body = (
         f"Hi {person.first}, could you serve as {role.role} with {ctx.ministry.name} on "
-        f"{_day(day)} at {format_time(local.time())}? Let me know either way. "
+        f"{long_day(day)} at {format_time(local.time())}? Let me know either way. "
         f"Thanks, {ctx.leader_first}"
     )
     notes = []
-    if person.person_id in _blocked_on(ctx, [person.person_id], day):
-        notes.append(f"{person.first} can't make {_short(day)}.")
-    why_not = _why_not(ctx, person.person_id, person.first)
+    if person.person_id in blocked_on(ctx, [person.person_id], day):
+        notes.append(f"{person.first} can't make {short_day(day)}.")
+    why_not = why_cant_send(ctx, person.person_id, person.first)
     return AskAnswer(
         intent=AskIntent.DRAFT_MESSAGE,
         text="Here is a short draft for you to look over.",
@@ -778,7 +579,10 @@ def _draft_message(
         ],
         notes=notes,
         source=f"From your {ctx.ministry.name} roster and {person.first}'s availability",
-        looked_at=[f"{_short(day)} {ctx.ministry.name} roster", f"{person.first}'s blockout dates"],
+        looked_at=[
+            f"{short_day(day)} {ctx.ministry.name} roster",
+            f"{person.first}'s blockout dates",
+        ],
     )
 
 
@@ -794,9 +598,10 @@ def _remember(ctx: Context, person: TeamMember) -> AskAnswer:
         or re.search(rf"\b{re.escape(person.first)}\b", m.text)
     ]
     pending = [
-        p.payload["text"]
+        payload.text
         for p in pending_memory_proposals(ctx.session, ctx.church_id, ctx.ministry.id)
-        if p.payload.get("about_person_id") == str(person.person_id)
+        for payload in [MemoryPayload.model_validate(p.payload)]
+        if payload.about_person_id == person.person_id
     ]
     notes = [m.text for m in items]
     notes += [f"Waiting for you to confirm: “{text}”" for text in pending]
@@ -827,15 +632,15 @@ def _availability(ctx: Context, person: TeamMember) -> AskAnswer:
         .order_by(Blockout.start_date)
     ).all()
     ranges = [
-        _short(b.start_date)
+        short_day(b.start_date)
         if b.start_date == b.end_date
-        else f"{_short(b.start_date)} to {_short(b.end_date)}"
+        else f"{short_day(b.start_date)} to {short_day(b.end_date)}"
         for b in blockouts
     ]
     return AskAnswer(
         intent=AskIntent.AVAILABILITY,
         text=(
-            f"{person.first} is blocked out {_and(ranges)}."
+            f"{person.first} is blocked out {and_list(ranges)}."
             if ranges
             else f"{person.first} has no blocked-out dates in the next 4 weeks."
         ),
@@ -902,18 +707,21 @@ def _suggestions(ctx: Context) -> list[AskAction]:
         member, on = clash
         suggestions.append(
             AskAction(
-                label=f"Who can take {member.first}'s place on {_short(on)}?",
+                label=f"Who can take {member.first}'s place on {short_day(on)}?",
                 kind="ask",
                 intent=AskIntent.REPLACE,
                 about_person_id=member.person_id,
                 on=on,
             )
         )
-    day = _next_day(ctx)
+    day = next_day(ctx)
     if day:
         suggestions.append(
             AskAction(
-                label=f"Who is free on {_short(day)}?", kind="ask", intent=AskIntent.FREE_ON, on=day
+                label=f"Who is free on {short_day(day)}?",
+                kind="ask",
+                intent=AskIntent.FREE_ON,
+                on=day,
             )
         )
     suggestions.append(
@@ -924,7 +732,7 @@ def _suggestions(ctx: Context) -> list[AskAction]:
     if day:
         suggestions.append(
             AskAction(
-                label=f"Draft a reminder for {_short(day)}",
+                label=f"Draft a reminder for {short_day(day)}",
                 kind="ask",
                 intent=AskIntent.DRAFT_REMINDER,
                 on=day,
@@ -951,216 +759,3 @@ def _suggestions(ctx: Context) -> list[AskAction]:
             )
         )
     return suggestions
-
-
-# ---------------------------------------------------------------------------
-# Facts
-# ---------------------------------------------------------------------------
-
-
-def _context(
-    session: Session,
-    church_id: uuid.UUID,
-    ministry_id: uuid.UUID,
-    person_id: uuid.UUID,
-    today: date | None,
-) -> Context:
-    ministry = session.scalar(
-        select(Ministry).where(Ministry.church_id == church_id, Ministry.id == ministry_id)
-    )
-    if ministry is None:
-        raise AskNotFound("ministry not found")
-    if not is_leader(session, church_id, ministry_id, person_id):
-        raise AskNotAllowed("only this ministry's leaders can ask about it")
-    leader = session.get_one(Person, person_id)
-    church = session.get_one(Church, church_id)
-    return Context(
-        session=session,
-        church_id=church_id,
-        ministry=ministry,
-        leader=leader,
-        tz=ZoneInfo(church.timezone),
-        today=today or church_today(session, church_id),
-        team=_team(session, church_id, ministry_id),
-    )
-
-
-def _team(
-    session: Session, church_id: uuid.UUID, ministry_id: uuid.UUID
-) -> dict[uuid.UUID, TeamMember]:
-    team: dict[uuid.UUID, TeamMember] = {}
-    for person, role_id, experience in session.execute(
-        select(Person, RoleSkill.role_id, RoleSkill.experience)
-        .join(Membership, Membership.person_id == Person.id)
-        .outerjoin(RoleSkill, RoleSkill.membership_id == Membership.id)
-        .where(
-            Membership.church_id == church_id,
-            Membership.ministry_id == ministry_id,
-            Membership.status == MembershipStatus.ACTIVE,
-            Person.stopped.is_(False),
-        )
-    ):
-        member = team.setdefault(
-            person.id, TeamMember(person.id, person.name, list(person.nicknames))
-        )
-        if role_id is not None:
-            member.role_ids.add(role_id)
-        if experience is not None and _rank(experience) < _rank(member.experience):
-            member.experience = experience
-    return team
-
-
-def _match(ctx: Context, written: str) -> list[TeamMember]:
-    """Team members a name as written could mean. Several means ask; none means not found."""
-    q = written.strip().rstrip(".").casefold()
-    if not q:
-        return []
-    exact = [
-        m
-        for m in ctx.team.values()
-        if q == m.name.casefold() or q in (n.rstrip(".").casefold() for n in m.nicknames)
-    ]
-    if exact:
-        return exact
-    return sorted(
-        (
-            m
-            for m in ctx.team.values()
-            if q == m.first.casefold()
-            or m.name.casefold().startswith(q + " ")
-            or (len(q) > 2 and m.name.casefold().startswith(q))
-        ),
-        key=lambda m: m.name,
-    )
-
-
-def _named_in(ctx: Context, text: str) -> list[TeamMember]:
-    """Team members whose full or first name appears in the text (no model needed)."""
-    full = [m for m in ctx.team.values() if re.search(rf"\b{re.escape(m.name)}\b", text, re.I)]
-    if full:
-        return full
-    return [m for m in ctx.team.values() if re.search(rf"\b{re.escape(m.first)}\b", text, re.I)]
-
-
-def _gatherings_on(ctx: Context, day: date) -> list[RosterGathering]:
-    out = roster(ctx.session, ctx.church_id, ctx.ministry.id, day, day + timedelta(days=1))
-    return [g for g in out.gatherings if g.roles] if out else []
-
-
-def _next_day(ctx: Context) -> date | None:
-    out = roster(
-        ctx.session,
-        ctx.church_id,
-        ctx.ministry.id,
-        ctx.today,
-        ctx.today + timedelta(days=LOOKAHEAD_DAYS),
-    )
-    days = [
-        g.start_at.astimezone(ctx.tz).date() for g in (out.gatherings if out else []) if g.roles
-    ]
-    return min(days) if days else None
-
-
-def _busy(ctx: Context, ids: list[uuid.UUID], start: datetime, end: datetime) -> set[uuid.UUID]:
-    return set(
-        ctx.session.scalars(
-            select(Assignment.person_id)
-            .join(Gathering, Gathering.id == Assignment.gathering_id)
-            .where(
-                Assignment.church_id == ctx.church_id,
-                Assignment.person_id.in_(ids),
-                Assignment.status != AssignmentStatus.DECLINED,
-                Gathering.start_at < end,
-                Gathering.end_at > start,
-            )
-        )
-    )
-
-
-def _blocked_on(ctx: Context, ids: list[uuid.UUID], day: date) -> set[uuid.UUID]:
-    """Blocked out that day, or declined a place that day."""
-    return unavailable_on(ctx.session, ctx.church_id, ids, day, ctx.tz)
-
-
-def _next_assignment(
-    ctx: Context, person_id: uuid.UUID, on: date | None
-) -> tuple[Assignment, Gathering, Role, str] | None:
-    start = datetime.combine(on or ctx.today, time(0), tzinfo=ctx.tz)
-    end = start + timedelta(days=1 if on else LOOKAHEAD_DAYS)
-    row = ctx.session.execute(
-        select(Assignment, Gathering, Role, GatheringType.name)
-        .join(Gathering, Gathering.id == Assignment.gathering_id)
-        .join(GatheringType, GatheringType.id == Gathering.gathering_type_id)
-        .join(Role, Role.id == Assignment.role_id)
-        .where(
-            Assignment.church_id == ctx.church_id,
-            Assignment.ministry_id == ctx.ministry.id,
-            Assignment.person_id == person_id,
-            Assignment.status != AssignmentStatus.DECLINED,
-            Gathering.start_at >= start,
-            Gathering.start_at < end,
-        )
-        .order_by(Gathering.start_at)
-        .limit(1)
-    ).first()
-    return (row[0], row[1], row[2], row[3]) if row else None
-
-
-def _open_overlap(ctx: Context, assignment_id: uuid.UUID) -> uuid.UUID | None:
-    brief = briefing(ctx.session, ctx.church_id, ctx.leader.id, ctx.today)
-    for item in brief.items:
-        if item.type is not FindingType.OVERLAP or not item.can_huddle:
-            continue
-        finding = ctx.session.get_one(Finding, item.finding_id)
-        if str(assignment_id) in finding.details.get("assignment_ids", []):
-            return item.finding_id
-    return None
-
-
-def _facts(ctx: Context, question: str) -> str:
-    out = roster(
-        ctx.session,
-        ctx.church_id,
-        ctx.ministry.id,
-        ctx.today,
-        ctx.today + timedelta(days=LOOKAHEAD_DAYS),
-    )
-    days = sorted(
-        {g.start_at.astimezone(ctx.tz).date() for g in (out.gatherings if out else []) if g.roles}
-    )
-    upcoming = ", ".join(f"{d:%A} {d.isoformat()}" for d in days[:8]) or "none"
-    return (
-        f"Today: {ctx.today:%A} {ctx.today.isoformat()}\n"
-        f"Ministry: {ctx.ministry.name}\n"
-        f"Upcoming {ctx.ministry.name} dates: {upcoming}\n\n"
-        f"Question: {question}"
-    )
-
-
-def _parse_date(value: str | None) -> date | None:
-    try:
-        return date.fromisoformat(value) if value else None
-    except ValueError:
-        return None
-
-
-def _rank(experience: Experience | None) -> int:
-    return EXPERIENCE_RANK[experience] if experience else len(EXPERIENCE_RANK)
-
-
-def _day(d: date) -> str:
-    return f"{d:%a} {d:%b} {d.day}"
-
-
-def _short(d: date) -> str:
-    return f"{d:%b} {d.day}"
-
-
-def _count(n: int, one: str, many: str) -> str:
-    return f"{'One' if n == 1 else n} {one if n == 1 else many}"
-
-
-def _and(items: list[str]) -> str:
-    if len(items) <= 1:
-        return "".join(items)
-    return f"{', '.join(items[:-1])} and {items[-1]}"

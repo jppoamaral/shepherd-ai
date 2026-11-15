@@ -6,10 +6,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.routes import ReaderDep
-from app.domain.schemas import ProposalOut, SuggestionApprove, SuggestionOut
+from app.api.deps import ReaderDep
+from app.domain.schemas import (
+    CheckWarning,
+    ProposalOut,
+    SuggestionApprove,
+    SuggestionCheckOut,
+    SuggestionOut,
+)
 from app.services.briefing import church_today
-from app.services.errors import ApprovalError, NotAllowed, NotFound
+from app.services.checks_runner import preview_checks
 from app.services.proposal_text import describe
 from app.services.suggestion import approve_suggestion, suggest
 
@@ -34,23 +40,27 @@ def get_suggestion(
     return result
 
 
+@router.post("/churches/{church_id}/ministries/{ministry_id}/suggestion/check")
+def check(reader: ReaderDep, ministry_id: uuid.UUID, body: SuggestionApprove) -> SuggestionCheckOut:
+    """What approving this (possibly edited) roster would newly flag. Nothing is saved."""
+    issues = preview_checks(
+        reader.session,
+        reader.church_id,
+        ministry_id,
+        [(a.gathering_id, a.role_id, a.person_id) for a in body.assignments],
+    )
+    return SuggestionCheckOut(
+        warnings=[CheckWarning(type=i.type, severity=i.severity, text=i.text) for i in issues]
+    )
+
+
 @router.post("/churches/{church_id}/ministries/{ministry_id}/suggestion/approve")
 def approve(reader: ReaderDep, ministry_id: uuid.UUID, body: SuggestionApprove) -> ProposalOut:
     """Approve the roster as the leader edited it. Recorded through the approval queue."""
     session = reader.session
-    try:
-        proposal = approve_suggestion(
-            session, reader.church_id, ministry_id, body.person_id, body.assignments
-        )
-    except NotFound as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
-    except NotAllowed as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
-    except ApprovalError as error:
-        session.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    proposal = approve_suggestion(
+        session, reader.church_id, ministry_id, body.person_id, body.assignments
+    )
     session.commit()
     (described,) = describe(session, reader.church_id, [ProposalOut.model_validate(proposal)])
     return described

@@ -12,12 +12,15 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import Person, Proposal
 from app.db.repositories.audit import AuditLogRepository
-from app.domain.enums import ProposalStatus
+from app.db.repositories.proposals import ProposalRepository
+from app.domain.enums import ProposalStatus, ProposalType
+from app.domain.schemas import ProposalOut
 from app.services import (
     huddle_apply,
     memory_apply,
@@ -28,6 +31,7 @@ from app.services import (
     serve_ask_apply,
 )
 from app.services.errors import ApprovalError, NotAllowed, NotFound
+from app.services.names import Names, ProposalText
 
 
 @dataclass(frozen=True)
@@ -38,35 +42,43 @@ class ProposalHandler:
     apply: Callable[[Session, Proposal, Person], dict[str, Any]]
     # Optional cleanup after a rejection (nothing in the record changes).
     on_reject: Callable[[Session, Proposal], None] | None = None
+    # How the proposal reads in the approval queue; types decided at once have none.
+    describe: Callable[[Names, ProposalOut], ProposalText] | None = None
 
 
 HANDLERS: Mapping[str, ProposalHandler] = {
-    profile_apply.PROPOSAL_TYPE: ProposalHandler(
+    ProposalType.CHURCH_PROFILE: ProposalHandler(
         may_decide=profile_apply.may_decide,
         apply=profile_apply.apply,
         on_reject=profile_apply.on_reject,
+        describe=profile_apply.describe,
     ),
-    roster_apply.PROPOSAL_TYPE: ProposalHandler(
+    ProposalType.LEADER_ROSTER: ProposalHandler(
         may_decide=roster_apply.may_decide,
         apply=roster_apply.apply,
         on_reject=roster_apply.on_reject,
+        describe=roster_apply.describe,
     ),
-    memory_apply.PROPOSAL_TYPE: ProposalHandler(
-        may_decide=memory_apply.may_decide, apply=memory_apply.apply
+    ProposalType.MEMORY: ProposalHandler(
+        may_decide=memory_apply.may_decide,
+        apply=memory_apply.apply,
+        describe=memory_apply.describe,
     ),
-    huddle_apply.ACCEPT_TYPE: ProposalHandler(
+    ProposalType.HUDDLE_ACCEPT_REPLACEMENT: ProposalHandler(
         may_decide=huddle_apply.may_decide, apply=huddle_apply.apply_accept
     ),
-    huddle_apply.UNDO_TYPE: ProposalHandler(
+    ProposalType.HUDDLE_UNDO_REPLACEMENT: ProposalHandler(
         may_decide=huddle_apply.may_decide, apply=huddle_apply.apply_undo
     ),
-    reminders_apply.PROPOSAL_TYPE: ProposalHandler(
-        may_decide=reminders_apply.may_decide, apply=reminders_apply.apply
+    ProposalType.REMINDERS: ProposalHandler(
+        may_decide=reminders_apply.may_decide,
+        apply=reminders_apply.apply,
+        describe=reminders_apply.describe,
     ),
-    serve_ask_apply.PROPOSAL_TYPE: ProposalHandler(
+    ProposalType.SERVE_ASK: ProposalHandler(
         may_decide=serve_ask_apply.may_decide, apply=serve_ask_apply.apply
     ),
-    serve_ask_apply.SWAP_TYPE: ProposalHandler(
+    ProposalType.SERVE_ASK_SWAP: ProposalHandler(
         may_decide=serve_ask_apply.may_decide, apply=serve_ask_apply.apply_swap
     ),
     **{
@@ -148,3 +160,23 @@ class ApprovalService:
             approved_by_person_id=person.id if status is ProposalStatus.APPROVED else None,
         )
         self.session.flush()
+
+
+def propose_and_approve(
+    session: Session,
+    church_id: uuid.UUID,
+    *,
+    type: ProposalType,
+    payload: BaseModel,
+    created_by_agent: str,
+    person_id: uuid.UUID,
+) -> Proposal:
+    """Record a proposal and approve it at once, for when a person's tap *is* the approval.
+
+    A leader tapping Send, Resolve or Put in, or a volunteer answering about herself: the
+    change is still a proposal, checked by `may_decide`, applied here and audited.
+    """
+    proposal = ProposalRepository(session, church_id).create(
+        type=type, payload=payload, created_by_agent=created_by_agent
+    )
+    return ApprovalService(session).approve(church_id, proposal.id, person_id)

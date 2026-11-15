@@ -348,6 +348,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/churches/{church_id}/findings/{finding_id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer Check In
+         * @description Answer "still on the team?": yes settles it, later asks again in four weeks.
+         */
+        post: operations["answer_check_in_churches__church_id__findings__finding_id__answer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/churches/{church_id}/ministries/{ministry_id}/roster": {
         parameters: {
             query?: never;
@@ -557,6 +577,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/churches/{church_id}/ministries/{ministry_id}/suggestion/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check
+         * @description What approving this (possibly edited) roster would newly flag. Nothing is saved.
+         */
+        post: operations["check_churches__church_id__ministries__ministry_id__suggestion_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/churches/{church_id}/ministries/{ministry_id}/suggestion/approve": {
         parameters: {
             query?: never;
@@ -751,6 +791,22 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AbsenceAnswer
+         * @description The approver's answer to "still on the team?". Neither changes membership.
+         */
+        AbsenceAnswer: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /**
+             * Answer
+             * @enum {string}
+             */
+            answer: "still_here" | "later";
+        };
         /** AgentReplyOut */
         AgentReplyOut: {
             /** Message */
@@ -1098,6 +1154,17 @@ export interface components {
             channel: string;
             /** Messages */
             messages: components["schemas"]["ChatMessageOut"][];
+        };
+        /**
+         * CheckWarning
+         * @description Something the checks would flag if this roster were approved. Never a block.
+         */
+        CheckWarning: {
+            type: components["schemas"]["FindingType"];
+            /** Severity */
+            severity: string;
+            /** Text */
+            text: string;
         };
         /** Choice */
         Choice: {
@@ -2008,6 +2075,11 @@ export interface components {
             /** Assignments */
             assignments: components["schemas"]["SuggestedAssignment"][];
         };
+        /** SuggestionCheckOut */
+        SuggestionCheckOut: {
+            /** Warnings */
+            warnings: components["schemas"]["CheckWarning"][];
+        };
         /** SuggestionLine */
         SuggestionLine: {
             /**
@@ -2721,6 +2793,40 @@ export interface operations {
             };
         };
     };
+    answer_check_in_churches__church_id__findings__finding_id__answer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                finding_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AbsenceAnswer"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_roster_churches__church_id__ministries__ministry_id__roster_get: {
         parameters: {
             query?: {
@@ -3094,6 +3200,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_churches__church_id__ministries__ministry_id__suggestion_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ministry_id: string;
+                church_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionApprove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionCheckOut"];
                 };
             };
             /** @description Validation Error */

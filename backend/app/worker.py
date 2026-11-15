@@ -10,6 +10,7 @@ from datetime import date, timedelta
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db.models import Church, Ministry
@@ -23,32 +24,33 @@ log = logging.getLogger("shepherd.worker")
 
 
 def extend_gatherings() -> None:
-    horizon = timedelta(weeks=get_settings().gathering_horizon_weeks)
     with get_sessionmaker()() as session:
-        for church in session.scalars(select(Church)):
-            # Start a day early so no church's "today" is missed across time zones.
-            start = date.today() - timedelta(days=1)
-            created = ensure_gatherings(session, church.id, start, start + horizon)
-            findings = run_checks(session, church.id, start, start + timedelta(weeks=4))
-            # Reminders for the coming week, drafted for leaders to approve (never sent here).
-            drafted = sum(
-                len(
-                    draft_reminders(
-                        session, church.id, ministry_id, church_today(session, church.id)
-                    )
-                )
-                for ministry_id in session.scalars(
-                    select(Ministry.id).where(Ministry.church_id == church.id)
-                )
-            )
-            log.info(
-                "church=%s gatherings_created=%d open_findings=%d reminders_drafted=%d",
-                church.name,
-                created,
-                len(findings),
-                drafted,
-            )
+        run_nightly(session)
         session.commit()
+
+
+def run_nightly(session: Session) -> None:
+    """The nightly job for every church, in the caller's session. Does not commit."""
+    horizon = timedelta(weeks=get_settings().gathering_horizon_weeks)
+    for church in session.scalars(select(Church)):
+        # Start a day early so no church's "today" is missed across time zones.
+        start = date.today() - timedelta(days=1)
+        created = ensure_gatherings(session, church.id, start, start + horizon)
+        findings = run_checks(session, church.id, start, start + timedelta(weeks=4))
+        # Reminders for the coming week, drafted for leaders to approve (never sent here).
+        drafted = sum(
+            len(draft_reminders(session, church.id, ministry_id, church_today(session, church.id)))
+            for ministry_id in session.scalars(
+                select(Ministry.id).where(Ministry.church_id == church.id)
+            )
+        )
+        log.info(
+            "church=%s gatherings_created=%d open_findings=%d reminders_drafted=%d",
+            church.name,
+            created,
+            len(findings),
+            drafted,
+        )
 
 
 def main() -> None:

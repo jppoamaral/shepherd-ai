@@ -30,4 +30,5 @@ export type MemoryItem = S['MemoryItemOut'];
 export type MemoryPending = S['MemoryPendingOut'];
 export type Suggestion = S['SuggestionOut'];
 export type SuggestionLine = S['SuggestionLine'];
+export type CheckWarning = S['CheckWarning'];
 export type SuggestedAssignment = S['SuggestedAssignment'];

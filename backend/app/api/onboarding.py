@@ -2,13 +2,12 @@
 
 import uuid
 from collections.abc import Callable
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.agents.onboarding import AgentReply, OnboardingAgent, OnboardingNotFound
-from app.api.routes import ReaderDep, SessionDep
+from app.api.deps import LLMDep, ReaderDep, SessionDep
 from app.db.repositories.onboarding import OnboardingRepository
 from app.domain.schemas import (
     AgentReplyOut,
@@ -17,32 +16,16 @@ from app.domain.schemas import (
     OnboardingStart,
     OnboardingStarted,
 )
-from app.llm.client import LLMClient
-from app.llm.factory import LLMNotConfigured, get_llm
-from app.services.errors import ApprovalError
 from app.services.onboarding import start_onboarding
 from app.services.profile import render_summary
 
 router = APIRouter(tags=["onboarding"])
 
 
-def llm_dependency() -> LLMClient:
-    try:
-        return get_llm()
-    except LLMNotConfigured as error:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
-
-
-LLMDep = Annotated[LLMClient, Depends(llm_dependency)]
-
-
 @router.post("/onboarding", status_code=status.HTTP_201_CREATED)
 def start(body: OnboardingStart, session: SessionDep) -> OnboardingStarted:
     """Create a draft church, its admin, and an onboarding session; returns the first question."""
-    try:
-        started = start_onboarding(session, body.church_name, body.admin_name)
-    except ApprovalError as error:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    started = start_onboarding(session, body.church_name, body.admin_name)
     session.commit()
     return OnboardingStarted(
         onboarding_id=started.session.id,

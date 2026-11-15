@@ -41,6 +41,7 @@ from app.domain.schemas import (
     RosterPerson,
     RosterRole,
 )
+from app.services.absence import run_absence_check
 from app.services.checks_runner import run_checks
 from app.services.huddle_replacement import free_candidates
 
@@ -94,7 +95,10 @@ def briefing(
         raise NotALeader("this person doesn't lead a ministry")
     person = session.get_one(Person, person_id)
     end = start + timedelta(days=BRIEFING_DAYS)
-    findings = run_checks(session, church_id, start, end)
+    findings = [
+        *run_checks(session, church_id, start, end),
+        *run_absence_check(session, church_id, start),
+    ]
 
     ministry_names = dict(
         session.execute(
@@ -159,7 +163,13 @@ def _headline(first: str, warnings: int, notes: int) -> str:
     return f"{first}, this week you have " + " and ".join(parts) + "."
 
 
-KIND_ORDER = {FindingType.OVERLAP: 0, FindingType.LOAD: 1, FindingType.BELOW_MINIMUM: 2}
+KIND_ORDER = {
+    FindingType.OVERLAP: 0,
+    FindingType.BLOCKOUT: 1,
+    FindingType.LOAD: 2,
+    FindingType.BELOW_MINIMUM: 3,
+    FindingType.ABSENT: 4,
+}
 
 
 def _order(f: Finding) -> tuple[int, int, str]:

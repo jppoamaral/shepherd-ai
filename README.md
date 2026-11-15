@@ -38,6 +38,23 @@ structured outputs) in `.env`, and also in `backend/.env` for local runs. Withou
 
 Tests never call the real model.
 
+## Online demo (Vercel + Render)
+
+The MVP runs on free hosting with synthetic data only (ADR 0002): the Angular app on Vercel, the API and Postgres on Render. Every push to the main branch deploys both.
+
+1. **Push** the repo to GitHub.
+2. **Render:** New → Blueprint → pick the repo. `render.yaml` creates `shepherd-db` (free Postgres) and `shepherd-api` (Docker). When asked for the `AZURE_OPENAI_*` values, paste them or leave them empty: without them, typed Ask Shepherd questions fall back to the suggested ones.
+3. **Check** `https://shepherd-api.onrender.com/health`. The first deploy migrates and seeds the database.
+4. **If Render gave the API another address,** change the `/api` rewrite in `frontend/vercel.json` to it and push.
+5. **Vercel:** Add New → Project → import the repo, set **Root Directory** to `frontend`, deploy. `vercel.json` has the build command, the output folder and the rewrite, so no other setting is needed.
+
+Open the Vercel URL: the "Who's leading today?" page has **Reset demo data**, which puts the fictional data back with the demo week starting the coming Sunday.
+
+Free-tier limits:
+- **The API sleeps after 15 minutes idle.** The next request takes about a minute; the app shows "Waking up Shepherd…" meanwhile. Open the site a couple of minutes before presenting.
+- **The free database expires 30 days after it is created.** Before a presentation, delete and recreate it from the Blueprint; the API seeds it again on start.
+- **`DEMO_MODE=true` lets anyone reset the data,** and there is no sign-in yet. Never put a real church's data in this deployment.
+
 ## Development
 
 | Task | Command |

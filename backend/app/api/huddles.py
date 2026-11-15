@@ -5,9 +5,9 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
-from app.api.routes import ReaderDep
+from app.api.deps import ReaderDep
 from app.db.repositories.reads import ChurchReader
 from app.domain.schemas import (
     HuddleAcceptReplacement,
@@ -17,11 +17,7 @@ from app.domain.schemas import (
     HuddleStart,
     HuddleUndoReplacement,
 )
-from app.services.errors import ApprovalError, NotAllowed, NotFound
 from app.services.huddle import (
-    HuddleError,
-    HuddleNotAllowed,
-    HuddleNotFound,
     accept_replacement,
     choose_slot,
     get_huddle,
@@ -100,18 +96,7 @@ def undo(reader: ReaderDep, huddle_id: uuid.UUID, body: HuddleUndoReplacement) -
 
 
 def _run(reader: ChurchReader, action: Callable[[], HuddleOut], commit: bool = True) -> HuddleOut:
-    try:
-        result = action()
-    except (HuddleNotFound, NotFound) as error:
-        reader.session.rollback()
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
-    except (HuddleNotAllowed, NotAllowed) as error:
-        reader.session.rollback()
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
-    except (HuddleError, ApprovalError) as error:
-        # Nothing half-done stays behind, including the proposal itself.
-        reader.session.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    result = action()
     if commit:
         reader.session.commit()
     return result

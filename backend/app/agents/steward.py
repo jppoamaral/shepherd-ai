@@ -18,13 +18,14 @@ from sqlalchemy.orm import Session
 from app.db.repositories.intake import IntakeRepository, IntakeState
 from app.db.repositories.proposals import ProposalRepository
 from app.db.repositories.reads import ChurchReader
-from app.domain.enums import IntakeStatus
+from app.domain.enums import IntakeStatus, ProposalType
 from app.domain.intake import (
     IntakeContext,
     IntakeQuestion,
     NicknameSuggestions,
     ParsedSchedule,
 )
+from app.domain.proposals import LeaderRosterPayload, RosterLine
 from app.llm.client import LLMClient
 from app.llm.prompts import intake as prompts
 from app.services.intake import (
@@ -38,7 +39,6 @@ from app.services.intake import (
 from app.services.name_matching import normalize
 
 AGENT_NAME = "steward"
-ROSTER_PROPOSAL = "leader_roster"
 
 
 class IntakeNotFound(LookupError):
@@ -155,20 +155,18 @@ class StewardAgent:
         if state.status is not IntakeStatus.NEEDS_ANSWERS or not is_ready(state.draft):
             return
         proposal = self.proposals.create(
-            type=ROSTER_PROPOSAL,
-            payload={
-                "ministry_id": str(state.ministry_id),
-                "intake_id": str(state.id),
-                "assignments": [
-                    {
-                        "gathering_id": str(a.gathering_id),
-                        "role_id": str(a.role_id),
-                        "person_id": str(a.person_id),
-                    }
+            type=ProposalType.LEADER_ROSTER,
+            payload=LeaderRosterPayload(
+                ministry_id=state.ministry_id,
+                intake_id=state.id,
+                assignments=[
+                    RosterLine(
+                        gathering_id=a.gathering_id, role_id=a.role_id, person_id=a.person_id
+                    )
                     for a in assignments(state.draft)
                 ],
-                "nicknames": [n.model_dump(mode="json") for n in state.draft.nicknames],
-            },
+                nicknames=state.draft.nicknames,
+            ),
             created_by_agent=AGENT_NAME,
         )
         state.status, state.proposal_id = IntakeStatus.PROPOSED, proposal.id

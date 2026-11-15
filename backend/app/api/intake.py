@@ -3,10 +3,8 @@
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict
-from datetime import date
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
 from app.agents.steward import (
     IntakeClosed,
@@ -16,21 +14,12 @@ from app.agents.steward import (
     IntakeView,
     StewardAgent,
 )
-from app.api.onboarding import LLMDep
-from app.api.routes import ReaderDep
+from app.api.deps import LLMDep, ReaderDep, TodayDep
 from app.db.repositories.reads import ChurchReader
 from app.domain.schemas import IntakeAnswer, IntakeOut, IntakeSubmit
 from app.services.intake import IntakeAnswerError
 
 router = APIRouter(tags=["intake"])
-
-
-def today_dependency() -> date | None:
-    """The church's date for resolving schedules; None means "now". Tests pin it."""
-    return None
-
-
-TodayDep = Annotated[date | None, Depends(today_dependency)]
 
 
 @router.post(
