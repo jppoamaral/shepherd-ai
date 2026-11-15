@@ -157,7 +157,17 @@ This gives clean seams before new features. The steps are ordered by value, and 
 
 **Done when:** every test passes unchanged (except import paths), ruff, mypy and the frontend build are green, and a manual run of Demos 1, 2 and 4 behaves as before.
 
-## Phase 2: Finish the MVP features
+## Phase 2: Finish the MVP features — done 2026-11-14
+
+Done on the `mvp-cleanup` branch, one commit per step. How it differs from the steps written below:
+
+- **Check before approval (step 1):** a separate `POST …/suggestion/check` returns what the edited roster would newly flag (`checks_runner.preview_checks`, which saves nothing). `…/suggestion/approve` is unchanged. The Rosters page calls the check on the first press of Approve and shows "Approve anyway" / "Keep editing". `roster_apply.apply` re-runs the checks over the days it touched.
+- **Blockout check (step 2):** `checks.blockouts`, in `CHECKED_TYPES`, routed to the scheduler.
+- **Absence check (step 3):** the user chose to **work out "last served" and write nothing**. There is no nightly "served" job and no system approval. `services/absence.py` takes the latest past assignment that wasn't declined, or `Membership.last_served` (set by seeds or a profile). It skips people with no serving on record and people already on a coming roster. `POST /churches/{cid}/findings/{id}/answer`: `still_here` dismisses the finding until the person serves and goes quiet again; `later` sets `Membership.asked_at` and asks again after 4 weeks. The seeded card is **Olivia Grant** (Kids), not Hannah, who isn't on Kids.
+- **Volunteer chat (step 5):** only two wording fixes were needed. Two design screens have no flow and were left for later: Vol-05's "Check Friday" button (Shepherd would start a follow-up) and Vol-06 (a volunteer stating how often they'd like to serve).
+- **Repo (step 6):** design screens committed; `shepherd-design-brief/` is in `.gitignore`.
+
+The steps as planned:
 
 1. **Approving a roster re-runs the checks** (brief §11: "Leader edits a draft and creates a conflict").
    - `POST /churches/{cid}/ministries/{mid}/suggestion/approve` first returns the findings the edited roster *would* create. Use a check-only pass of the pure functions in `services/checks.py` on the proposed assignments plus the existing ones.
