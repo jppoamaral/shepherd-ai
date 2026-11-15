@@ -2,10 +2,8 @@
 
 Drafted by Ask Shepherd; sent only when the leader taps Send, which approves a `serve_ask`
 proposal (see `serve_ask_apply`). Her answer goes back to the leader as a notice; the
-roster changes only when the leader puts her in.
+roster changes only when the leader puts her in: a `serve_ask_swap` when she takes another
+person's place, like the huddle's Resolve.
 """
 
-PROPOSAL_TYPE = "serve_ask"
-# Putting someone who said yes into another person's place: a swap, like the huddle's Resolve.
-SWAP_TYPE = "serve_ask_swap"
 BUTTONS = ["Yes, I can", "No, sorry"]

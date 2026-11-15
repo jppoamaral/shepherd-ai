@@ -6,7 +6,6 @@ creates people or memberships (rule 6): everyone assigned must already be on
 the ministry's team.
 """
 
-import uuid
 from typing import Any
 
 from sqlalchemy import select
@@ -27,9 +26,8 @@ from app.domain.enums import (
     IntakeStatus,
     MembershipStatus,
 )
+from app.domain.proposals import LeaderRosterPayload
 from app.services.errors import ApprovalError
-
-PROPOSAL_TYPE = "leader_roster"
 
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
@@ -38,7 +36,8 @@ def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
         session.scalar(
             select(MinistryLeader.id).where(
                 MinistryLeader.church_id == proposal.church_id,
-                MinistryLeader.ministry_id == uuid.UUID(proposal.payload["ministry_id"]),
+                MinistryLeader.ministry_id
+                == LeaderRosterPayload.model_validate(proposal.payload).ministry_id,
                 MinistryLeader.person_id == person.id,
                 MinistryLeader.can_approve,
             )
@@ -49,7 +48,8 @@ def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
 
 def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, Any]:
     cid = proposal.church_id
-    ministry_id = uuid.UUID(proposal.payload["ministry_id"])
+    payload = LeaderRosterPayload.model_validate(proposal.payload)
+    ministry_id = payload.ministry_id
     team = set(
         session.scalars(
             select(Membership.person_id).where(
@@ -59,21 +59,11 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
             )
         )
     )
-    wanted = [
-        (uuid.UUID(a["gathering_id"]), uuid.UUID(a["role_id"]), uuid.UUID(a["person_id"]))
-        for a in proposal.payload["assignments"]
-    ]
-    reasons = {
-        (uuid.UUID(a["gathering_id"]), uuid.UUID(a["role_id"]), uuid.UUID(a["person_id"])): a.get(
-            "reason"
-        )
-        for a in proposal.payload["assignments"]
-    }
+    wanted = [(a.gathering_id, a.role_id, a.person_id) for a in payload.assignments]
+    reasons = {(a.gathering_id, a.role_id, a.person_id): a.reason for a in payload.assignments}
     # A roster the leader pasted (intake) vs. one Shepherd suggested and the leader approved.
     source = (
-        AssignmentSource.SUGGESTION
-        if proposal.payload.get("source") == "suggestion"
-        else AssignmentSource.LEADER
+        AssignmentSource.SUGGESTION if payload.source == "suggestion" else AssignmentSource.LEADER
     )
     if outsiders := {person_id for _, _, person_id in wanted} - team:
         raise ApprovalError(
@@ -107,11 +97,11 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
         created += 1
 
     learned = 0
-    for item in proposal.payload.get("nicknames", []):
+    for item in payload.nicknames:
         person = session.scalar(
-            select(Person).where(Person.church_id == cid, Person.id == uuid.UUID(item["person_id"]))
+            select(Person).where(Person.church_id == cid, Person.id == item.person_id)
         )
-        nickname = str(item["nickname"]).strip()
+        nickname = item.nickname.strip()
         if (
             person
             and nickname

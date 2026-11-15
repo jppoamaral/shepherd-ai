@@ -12,11 +12,12 @@ from sqlalchemy.orm import Session
 
 from app.db.models import LeaderNotice, Person
 from app.db.repositories.proposals import ProposalRepository
+from app.domain.enums import ProposalType
+from app.domain.proposals import ServeAskSwapPayload
 from app.domain.schemas import PutInOut, SuggestedAssignment
 from app.services.approval import ApprovalService
 from app.services.errors import ApprovalError, NotFound
 from app.services.inbound import notice_put_in, notice_settled, swap_from
-from app.services.serve_ask import SWAP_TYPE
 from app.services.suggestion import approve_suggestion
 
 
@@ -55,13 +56,13 @@ def put_in(
         return PutInOut(text=f"{name} is on the roster as {place.role}.")
     assignment, holder = swap
     proposal = ProposalRepository(session, church_id).create(
-        type=SWAP_TYPE,
-        payload={
-            "ministry_id": str(place.ministry_id),
-            "assignment_id": str(assignment.id),
-            "from_person_id": str(assignment.person_id),
-            "to_person_id": str(place.person_id),
-        },
+        type=ProposalType.SERVE_ASK_SWAP,
+        payload=ServeAskSwapPayload(
+            ministry_id=place.ministry_id,
+            assignment_id=assignment.id,
+            from_person_id=assignment.person_id,
+            to_person_id=place.person_id,
+        ),
         created_by_agent="steward",
     )
     ApprovalService(session).approve(church_id, proposal.id, leader_id)

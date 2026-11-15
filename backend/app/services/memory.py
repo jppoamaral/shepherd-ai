@@ -16,10 +16,9 @@ from sqlalchemy.orm import Session
 from app.db.models import MemoryItem, Ministry, MinistryLeader, Person, Proposal
 from app.db.repositories.audit import AuditLogRepository
 from app.db.repositories.proposals import ProposalRepository
-from app.domain.enums import MemoryKind, MemorySource, ProposalStatus
+from app.domain.enums import MemoryKind, MemorySource, ProposalStatus, ProposalType
+from app.domain.proposals import MemoryPayload
 from app.domain.schemas import MemoryItemOut, MemoryOut, MemoryPendingOut
-
-PROPOSAL_TYPE = "memory"
 
 _PRIVATE = re.compile(
     r"\b("
@@ -88,14 +87,14 @@ def propose_memory(
     if reason := private_reason(text):
         raise MemoryRefused(reason)
     return ProposalRepository(session, church_id).create(
-        type=PROPOSAL_TYPE,
-        payload={
-            "ministry_id": str(ministry_id),
-            "text": text,
-            "kind": kind.value,
-            "proposed_from": proposed_from.value,
-            "about_person_id": str(about_person_id) if about_person_id else None,
-        },
+        type=ProposalType.MEMORY,
+        payload=MemoryPayload(
+            ministry_id=ministry_id,
+            text=text,
+            kind=kind,
+            proposed_from=proposed_from,
+            about_person_id=about_person_id,
+        ),
         created_by_agent=agent,
     )
 
@@ -142,12 +141,12 @@ def pending_memory_proposals(
             select(Proposal)
             .where(
                 Proposal.church_id == church_id,
-                Proposal.type == PROPOSAL_TYPE,
+                Proposal.type == ProposalType.MEMORY,
                 Proposal.status == ProposalStatus.PENDING,
             )
             .order_by(Proposal.created_at)
         )
-        if p.payload.get("ministry_id") == str(ministry_id)
+        if MemoryPayload.model_validate(p.payload).ministry_id == ministry_id
     ]
 
 
@@ -184,13 +183,12 @@ def memory_view(session: Session, church_id: uuid.UUID, ministry_id: uuid.UUID) 
         pending=[
             MemoryPendingOut(
                 proposal_id=p.id,
-                kind=MemoryKind(p.payload["kind"]),
-                text=p.payload["text"],
-                about=names.get(uuid.UUID(p.payload["about_person_id"]))
-                if p.payload.get("about_person_id")
-                else None,
-                question=f"Should I remember this? “{p.payload['text']}”",
+                kind=payload.kind,
+                text=payload.text,
+                about=names.get(payload.about_person_id) if payload.about_person_id else None,
+                question=f"Should I remember this? “{payload.text}”",
             )
             for p in pending
+            for payload in [MemoryPayload.model_validate(p.payload)]
         ],
     )

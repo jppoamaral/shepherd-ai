@@ -31,7 +31,9 @@ from app.domain.enums import (
     FindingStatus,
     FindingType,
     HuddleStatus,
+    ProposalType,
 )
+from app.domain.proposals import HuddleAcceptPayload, HuddleUndoPayload
 from app.domain.schemas import (
     HuddleAgenda,
     HuddleLeader,
@@ -42,8 +44,6 @@ from app.domain.schemas import (
 )
 from app.services.approval import ApprovalService
 from app.services.huddle_replacement import (
-    ACCEPT_TYPE,
-    UNDO_TYPE,
     free_candidates,
     recheck_around,
 )
@@ -209,16 +209,16 @@ def accept_replacement(
     if side.replacement_person_id is None:
         raise HuddleError(f"Shepherd has no one to suggest for {side.ministry}")
     proposal = ProposalRepository(session, church_id).create(
-        type=ACCEPT_TYPE,
-        payload={
-            "huddle_id": str(huddle.id),
-            "finding_id": str(finding.id),
-            "ministry_id": str(ministry_id),
-            "ministry": side.ministry,
-            "assignment_id": raw["assignment_id"],
-            "from_person_id": str(finding.person_ids[0]),
-            "to_person_id": str(side.replacement_person_id),
-        },
+        type=ProposalType.HUDDLE_ACCEPT_REPLACEMENT,
+        payload=HuddleAcceptPayload(
+            huddle_id=huddle.id,
+            finding_id=finding.id,
+            ministry_id=ministry_id,
+            ministry=side.ministry,
+            assignment_id=uuid.UUID(raw["assignment_id"]),
+            from_person_id=finding.person_ids[0],
+            to_person_id=side.replacement_person_id,
+        ),
         created_by_agent="huddle",
     )
     ApprovalService(session).approve(church_id, proposal.id, person_id)
@@ -231,8 +231,8 @@ def undo_replacement(
     """Put the volunteer back and reopen the huddle, through the approval queue."""
     huddle = _load(session, church_id, huddle_id, person_id)
     proposal = ProposalRepository(session, church_id).create(
-        type=UNDO_TYPE,
-        payload={"huddle_id": str(huddle.id)},
+        type=ProposalType.HUDDLE_UNDO_REPLACEMENT,
+        payload=HuddleUndoPayload(huddle_id=huddle.id),
         created_by_agent="huddle",
     )
     ApprovalService(session).approve(church_id, proposal.id, person_id)

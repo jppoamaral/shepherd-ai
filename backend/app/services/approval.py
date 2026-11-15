@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Person, Proposal
 from app.db.repositories.audit import AuditLogRepository
-from app.domain.enums import ProposalStatus
+from app.domain.enums import ProposalStatus, ProposalType
 from app.services import (
     huddle_apply,
     memory_apply,
@@ -41,32 +41,32 @@ class ProposalHandler:
 
 
 HANDLERS: Mapping[str, ProposalHandler] = {
-    profile_apply.PROPOSAL_TYPE: ProposalHandler(
+    ProposalType.CHURCH_PROFILE: ProposalHandler(
         may_decide=profile_apply.may_decide,
         apply=profile_apply.apply,
         on_reject=profile_apply.on_reject,
     ),
-    roster_apply.PROPOSAL_TYPE: ProposalHandler(
+    ProposalType.LEADER_ROSTER: ProposalHandler(
         may_decide=roster_apply.may_decide,
         apply=roster_apply.apply,
         on_reject=roster_apply.on_reject,
     ),
-    memory_apply.PROPOSAL_TYPE: ProposalHandler(
+    ProposalType.MEMORY: ProposalHandler(
         may_decide=memory_apply.may_decide, apply=memory_apply.apply
     ),
-    huddle_apply.ACCEPT_TYPE: ProposalHandler(
+    ProposalType.HUDDLE_ACCEPT_REPLACEMENT: ProposalHandler(
         may_decide=huddle_apply.may_decide, apply=huddle_apply.apply_accept
     ),
-    huddle_apply.UNDO_TYPE: ProposalHandler(
+    ProposalType.HUDDLE_UNDO_REPLACEMENT: ProposalHandler(
         may_decide=huddle_apply.may_decide, apply=huddle_apply.apply_undo
     ),
-    reminders_apply.PROPOSAL_TYPE: ProposalHandler(
+    ProposalType.REMINDERS: ProposalHandler(
         may_decide=reminders_apply.may_decide, apply=reminders_apply.apply
     ),
-    serve_ask_apply.PROPOSAL_TYPE: ProposalHandler(
+    ProposalType.SERVE_ASK: ProposalHandler(
         may_decide=serve_ask_apply.may_decide, apply=serve_ask_apply.apply
     ),
-    serve_ask_apply.SWAP_TYPE: ProposalHandler(
+    ProposalType.SERVE_ASK_SWAP: ProposalHandler(
         may_decide=serve_ask_apply.may_decide, apply=serve_ask_apply.apply_swap
     ),
     **{

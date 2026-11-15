@@ -26,10 +26,6 @@ from app.db.models import (
 from app.domain.enums import AssignmentStatus, Experience, MembershipStatus
 from app.services.checks_runner import run_checks
 
-# Proposal types for "Resolve" and its undo (applied by `huddle_apply`).
-ACCEPT_TYPE = "huddle_accept_replacement"
-UNDO_TYPE = "huddle_undo_replacement"
-
 EXPERIENCE_RANK = {Experience.VETERAN: 0, Experience.EXPERIENCED: 1, Experience.NEW: 2}
 
 

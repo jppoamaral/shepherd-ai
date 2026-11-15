@@ -14,18 +14,24 @@ from app.channels.base import OutgoingMessage
 from app.channels.factory import channel_for, channel_name
 from app.db.models import Assignment, Church, MinistryLeader, Person, Proposal
 from app.db.repositories.messages import MessageWriter
-from app.services.reminders import PROPOSAL_TYPE, already_reminded, still_on_roster
-
-__all__ = ["PROPOSAL_TYPE", "apply", "may_decide"]
+from app.domain.proposals import RemindersPayload
+from app.services.reminders import already_reminded, still_on_roster
 
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     """A leader of the ministry who approves its rosters."""
+    ministry_id = RemindersPayload.model_validate(proposal.payload).ministry_id
+    return approves(session, proposal.church_id, ministry_id, person)
+
+
+def approves(
+    session: Session, church_id: uuid.UUID, ministry_id: uuid.UUID, person: Person
+) -> bool:
     return (
         session.scalar(
             select(MinistryLeader.id).where(
-                MinistryLeader.church_id == proposal.church_id,
-                MinistryLeader.ministry_id == uuid.UUID(proposal.payload["ministry_id"]),
+                MinistryLeader.church_id == church_id,
+                MinistryLeader.ministry_id == ministry_id,
                 MinistryLeader.person_id == person.id,
                 MinistryLeader.can_approve,
             )
@@ -39,18 +45,23 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
     church = session.get_one(Church, cid)
     channel = channel_for(session, church)
     writer = MessageWriter(session, cid)
-    buttons = tuple(proposal.payload.get("buttons", []))
+    payload = RemindersPayload.model_validate(proposal.payload)
+    buttons = tuple(payload.buttons)
     sent, failed, stopped, not_connected, changed, already = 0, 0, 0, 0, 0, 0
-    for item in proposal.payload["messages"]:
+    for item in payload.messages:
         person = session.scalar(
-            select(Person).where(Person.church_id == cid, Person.id == uuid.UUID(item["person_id"]))
+            select(Person).where(Person.church_id == cid, Person.id == item.person_id)
         )
         assignment = session.scalar(
             select(Assignment).where(
-                Assignment.church_id == cid, Assignment.id == uuid.UUID(item["assignment_id"])
+                Assignment.church_id == cid, Assignment.id == item.assignment_id
             )
         )
-        if person is None or assignment is None or not still_on_roster(session, cid, item):
+        if (
+            person is None
+            or assignment is None
+            or not still_on_roster(session, cid, item.assignment_id, item.person_id)
+        ):
             changed += 1  # the roster moved on since the draft; nothing to remind
             continue
         if already_reminded(session, cid, assignment.id):
@@ -65,7 +76,7 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
         message = writer.create(
             person_id=person.id,
             channel=channel_name(church),
-            body=item["body"],
+            body=item.body,
             kind="reminder",
             assignment_id=assignment.id,
             buttons=list(buttons),
@@ -76,7 +87,7 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
                 person_id=person.id,
                 person_name=person.name,
                 channel_identity=person.channel_identity,
-                body=item["body"],
+                body=item.body,
                 buttons=buttons,
             )
         )

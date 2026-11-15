@@ -126,6 +126,31 @@ class ProposalStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class ProposalType(StrEnum):
+    """Every kind of proposal. Each has a payload model in `app.domain.proposals` and a
+    handler in `app.services.approval`."""
+
+    CHURCH_PROFILE = "church_profile"
+    LEADER_ROSTER = "leader_roster"
+    MEMORY = "memory"
+    REMINDERS = "reminders"
+    # A leader asking someone to serve a place, and putting in someone who said yes.
+    SERVE_ASK = "serve_ask"
+    SERVE_ASK_SWAP = "serve_ask_swap"
+    # The huddle's "Resolve" and its undo.
+    HUDDLE_ACCEPT_REPLACEMENT = "huddle_accept_replacement"
+    HUDDLE_UNDO_REPLACEMENT = "huddle_undo_replacement"
+    # A volunteer's own answers, which her reply approves.
+    REPLY_CONFIRM = "reply_confirm"
+    REPLY_DECLINE = "reply_decline"
+    REPLY_AWAY = "reply_away"
+    REPLY_STOP = "reply_stop"
+    REPLY_START = "reply_start"
+    # Her answer to a leader's ask; the leader still decides.
+    REPLY_CAN_SERVE = "reply_can_serve"
+    REPLY_CANT_SERVE = "reply_cant_serve"
+
+
 class OnboardingTopic(StrEnum):
     """Onboarding interview topics, in the order the agent asks them."""
 

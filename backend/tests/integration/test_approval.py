@@ -29,6 +29,7 @@ from app.domain.enums import (
     OnboardingStatus,
     ProfileStatus,
     ProposalStatus,
+    ProposalType,
     Weekday,
 )
 from app.domain.profile import ChurchProfileDraft
@@ -42,7 +43,7 @@ from tests.profile_script import SCRIPT, run
 
 def propose(session: Session, started: Started, draft: ChurchProfileDraft) -> Proposal:
     proposal = ProposalRepository(session, started.church.id).create(
-        type="church_profile", payload=draft.model_dump(mode="json"), created_by_agent="onboarding"
+        type=ProposalType.CHURCH_PROFILE, payload=draft, created_by_agent="onboarding"
     )
     started.session.proposal_id = proposal.id
     started.session.status = OnboardingStatus.PROPOSED

@@ -32,8 +32,6 @@ from app.services.errors import ApprovalError
 from app.services.gatherings import ensure_gatherings
 from app.services.profile import proposal_blockers
 
-PROPOSAL_TYPE = "church_profile"
-
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     return person.is_admin and person.church_id == proposal.church_id

@@ -50,13 +50,19 @@ from app.domain.enums import (
     FindingType,
     MembershipStatus,
     MessageStatus,
+    ProposalType,
     StatedBy,
+)
+from app.domain.proposals import (
+    ReplyAskPayload,
+    ReplyAwayPayload,
+    ReplyPayload,
+    ReplyPlacePayload,
 )
 from app.domain.replies import ParsedReply, ReplyIntent
 from app.domain.schemas import PutIn
 from app.llm.client import LLMClient
 from app.llm.prompts.replies import PARSE
-from app.services import reply_types
 from app.services.approval import ApprovalService
 from app.services.briefing import church_today
 from app.services.reminders import BUTTONS as REMINDER_BUTTONS
@@ -474,7 +480,11 @@ def _open_reminder(ctx: Inbound) -> Reminder | None:
 def _confirm(ctx: Inbound, r: Reminder) -> list[BotReply]:
     _await(ctx, None)
     if r.ask is not None:
-        _approve(ctx, reply_types.CAN_SERVE, {"message_id": str(r.ask.id)})
+        _approve(
+            ctx,
+            ProposalType.REPLY_CAN_SERVE,
+            ReplyAskPayload(person_id=ctx.person.id, message_id=r.ask.id),
+        )
         # Asked to take someone's place: the leader's notice says whose (she isn't told).
         holder = _holder(ctx, r.ask.replaces_assignment_id)
         instead = f" in {holder}'s place" if holder else ""
@@ -491,7 +501,11 @@ def _confirm(ctx: Inbound, r: Reminder) -> list[BotReply]:
             _say(ctx, f"Thank you, {ctx.first}! I've told your leader. They'll confirm with you.")
         ]
     assert r.assignment is not None
-    _approve(ctx, reply_types.CONFIRM, {"assignment_id": str(r.assignment.id)})
+    _approve(
+        ctx,
+        ProposalType.REPLY_CONFIRM,
+        ReplyPlacePayload(person_id=ctx.person.id, assignment_id=r.assignment.id),
+    )
     return [_say(ctx, f"Thank you, {ctx.first}! See you {r.start:%A}.")]
 
 
@@ -499,7 +513,11 @@ def _decline(ctx: Inbound, r: Reminder, note: str | None) -> list[BotReply]:
     _await(ctx, None)
     when = _short(r.start.date())
     if r.ask is not None:
-        _approve(ctx, reply_types.CANT_SERVE, {"message_id": str(r.ask.id)})
+        _approve(
+            ctx,
+            ProposalType.REPLY_CANT_SERVE,
+            ReplyAskPayload(person_id=ctx.person.id, message_id=r.ask.id),
+        )
         _tell_leaders(
             ctx,
             r.ministry_id,
@@ -509,7 +527,11 @@ def _decline(ctx: Inbound, r: Reminder, note: str | None) -> list[BotReply]:
         )
         return [_say(ctx, "Thanks for letting me know. I've told your leader.")]
     assert r.assignment is not None
-    _approve(ctx, reply_types.DECLINE, {"assignment_id": str(r.assignment.id)})
+    _approve(
+        ctx,
+        ProposalType.REPLY_DECLINE,
+        ReplyPlacePayload(person_id=ctx.person.id, assignment_id=r.assignment.id),
+    )
     _tell_leaders(
         ctx,
         r.ministry_id,
@@ -542,7 +564,11 @@ def _cant_commit(ctx: Inbound, r: Reminder) -> list[BotReply]:
     text = f"{ctx.person.name} can't commit to {r.start:%a} {when} yet ({r.ministry}, {r.role})."
     if r.ask is not None:
         # An ask she can't commit to is answered for now: her leader can ask someone else.
-        _approve(ctx, reply_types.CANT_SERVE, {"message_id": str(r.ask.id)})
+        _approve(
+            ctx,
+            ProposalType.REPLY_CANT_SERVE,
+            ReplyAskPayload(person_id=ctx.person.id, message_id=r.ask.id),
+        )
         _tell_leaders(ctx, r.ministry_id, "cant_serve", text)
     else:
         assert r.assignment is not None
@@ -594,14 +620,14 @@ def _save_away(ctx: Inbound, isos: list[str]) -> list[BotReply]:
     _await(ctx, None)
     if not dates:
         return [_say(ctx, "Which dates are you away?")]
-    _approve(ctx, reply_types.AWAY, {"dates": [d.isoformat() for d in dates]})
+    _approve(ctx, ProposalType.REPLY_AWAY, ReplyAwayPayload(person_id=ctx.person.id, dates=dates))
     return [_say(ctx, f"Saved. You're away {_and([_short(d) for d in dates])}. Thank you!")]
 
 
 def _stop(ctx: Inbound) -> list[BotReply]:
     _await(ctx, None)
     if not ctx.person.stopped:
-        _approve(ctx, reply_types.STOP, {})
+        _approve(ctx, ProposalType.REPLY_STOP, ReplyPayload(person_id=ctx.person.id))
         _tell_or_withdraw(ctx, "stopped", "started", f"{ctx.person.name} turned off reminders.")
     return [
         _say(
@@ -615,7 +641,7 @@ def _stop(ctx: Inbound) -> list[BotReply]:
 def _start(ctx: Inbound) -> list[BotReply]:
     _await(ctx, None)
     if ctx.person.stopped:
-        _approve(ctx, reply_types.START, {})
+        _approve(ctx, ProposalType.REPLY_START, ReplyPayload(person_id=ctx.person.id))
         _tell_or_withdraw(ctx, "started", "stopped", f"{ctx.person.name} turned reminders back on.")
     return [_say(ctx, "Welcome back! I'll send your reminders again.")]
 
@@ -678,12 +704,10 @@ def _what_i_know(ctx: Inbound) -> list[BotReply]:
 # --- helpers -------------------------------------------------------------------
 
 
-def _approve(ctx: Inbound, kind: str, payload: dict[str, Any]) -> None:
+def _approve(ctx: Inbound, kind: ProposalType, payload: ReplyPayload) -> None:
     """Her answer is a proposal she approves herself; ApprovalService applies and audits it."""
     proposal = ProposalRepository(ctx.session, ctx.church.id).create(
-        type=kind,
-        payload={"person_id": str(ctx.person.id), **payload},
-        created_by_agent="steward",
+        type=kind, payload=payload, created_by_agent="steward"
     )
     ApprovalService(ctx.session).approve(ctx.church.id, proposal.id, ctx.person.id)
 

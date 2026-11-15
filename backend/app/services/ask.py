@@ -31,7 +31,6 @@ from app.db.models import (
     Ministry,
     Person,
     Preference,
-    Proposal,
     Role,
     RoleSkill,
 )
@@ -43,7 +42,14 @@ from app.domain.enums import (
     Experience,
     FindingType,
     MembershipStatus,
-    ProposalStatus,
+    ProposalType,
+)
+from app.domain.proposals import (
+    MemoryPayload,
+    ReminderMessage,
+    RemindersPayload,
+    ServeAskMessage,
+    ServeAskPayload,
 )
 from app.domain.schemas import (
     AskAction,
@@ -58,13 +64,18 @@ from app.domain.schemas import (
 )
 from app.llm.client import LLMClient
 from app.llm.prompts.ask import PARSE
-from app.services import reminders, serve_ask
+from app.services import reminders
 from app.services.approval import ApprovalService
 from app.services.briefing import briefing, church_today, roster
 from app.services.huddle_replacement import EXPERIENCE_RANK, free_candidates, unavailable_on
 from app.services.memory import is_leader, pending_memory_proposals, private_reason
 from app.services.profile import format_time
-from app.services.reminders import already_reminded, reminder_text, still_on_roster
+from app.services.reminders import (
+    already_reminded,
+    pending_reminders,
+    reminder_text,
+    still_on_roster,
+)
 
 LOOKAHEAD_DAYS = 28
 MAX_PEOPLE = 6
@@ -245,8 +256,8 @@ def send_drafts(
         for g in (upcoming.gatherings if upcoming else [])
         for role in g.roles
     }
-    asks: list[dict[str, str]] = []
-    reminder_items: dict[uuid.UUID, list[dict[str, str]]] = defaultdict(list)
+    asks: list[ServeAskMessage] = []
+    reminder_items: dict[uuid.UUID, list[ReminderMessage]] = defaultdict(list)
     skipped: list[str] = []
     names: dict[uuid.UUID, str] = {}
     for d in body.drafts:
@@ -258,11 +269,13 @@ def send_drafts(
             raise AskNotFound("that place isn't on this ministry's rosters in the next 4 weeks")
         first = person.name.split(" ")[0]
         names[person.id] = first
-        item = {"person_id": str(person.id), "body": d.body.strip()}
+        text = d.body.strip()
         if d.kind == "ask":
             if person.id not in ctx.team:
                 raise AskNotFound(f"{person.name} isn't on the {ctx.ministry.name} team")
-            ask_item = {**item, "gathering_id": str(d.gathering_id), "role_id": str(d.role_id)}
+            ask_item = ServeAskMessage(
+                person_id=person.id, body=text, gathering_id=d.gathering_id, role_id=d.role_id
+            )
             if d.replaces_assignment_id is not None:
                 taken = _place(ctx, d.replaces_assignment_id)
                 if taken is None or (taken.gathering_id, taken.role_id) != (
@@ -270,34 +283,33 @@ def send_drafts(
                     d.role_id,
                 ):
                     raise AskNotFound("that place has changed since the draft")
-                ask_item["replaces_assignment_id"] = str(taken.id)
+                ask_item.replaces_assignment_id = taken.id
             asks.append(ask_item)
             continue
         assignment_id = d.assignment_id
         if assignment_id is None or not any(p.assignment_id == assignment_id for p in place.people):
             raise AskNotFound(f"{person.name} isn't on that roster")
-        if not still_on_roster(
-            session, church_id, {"assignment_id": str(assignment_id), "person_id": str(person.id)}
-        ):
+        if not still_on_roster(session, church_id, assignment_id, person.id):
             skipped.append(f"{first} is no longer on that roster.")
             continue
         if already_reminded(session, church_id, assignment_id):
             skipped.append(f"{first} already has a reminder for this.")
             continue
-        reminder_items[d.gathering_id].append({**item, "assignment_id": str(assignment_id)})
+        reminder_items[d.gathering_id].append(
+            ReminderMessage(assignment_id=assignment_id, person_id=person.id, body=text)
+        )
 
     repo = ProposalRepository(session, church_id)
     service = ApprovalService(session)
-    results = []
     proposals = [
         repo.create(
-            type=reminders.PROPOSAL_TYPE,
-            payload={
-                "ministry_id": str(ministry_id),
-                "gathering_id": str(gathering_id),
-                "messages": items,
-                "buttons": reminders.BUTTONS,
-            },
+            type=ProposalType.REMINDERS,
+            payload=RemindersPayload(
+                ministry_id=ministry_id,
+                gathering_id=gathering_id,
+                messages=items,
+                buttons=reminders.BUTTONS,
+            ),
             created_by_agent="ask",
         )
         for gathering_id, items in reminder_items.items()
@@ -305,53 +317,44 @@ def send_drafts(
     if asks:
         proposals.append(
             repo.create(
-                type=serve_ask.PROPOSAL_TYPE,
-                payload={"ministry_id": str(ministry_id), "messages": asks},
+                type=ProposalType.SERVE_ASK,
+                payload=ServeAskPayload(ministry_id=ministry_id, messages=asks),
                 created_by_agent="ask",
             )
         )
     for proposal in proposals:
         service.approve(church_id, proposal.id, ctx.leader.id)
-        results.append(proposal)
-    _close_covered_reminders(ctx, set(map(str, reminder_items)))
+    _close_covered_reminders(ctx, set(reminder_items))
 
     sent: list[uuid.UUID] = []
-    for proposal in results:
-        for item in proposal.payload["messages"]:
-            person = session.get_one(Person, uuid.UUID(item["person_id"]))
-            first = names[person.id]
-            if person.stopped:
-                skipped.append(f"{first} turned messages off.")
-            elif not person.opted_in:
-                skipped.append(f"{first} hasn't connected to chat yet.")
-            else:
-                sent.append(person.id)
+    recipients = [m.person_id for items in reminder_items.values() for m in items]
+    for person_id in [*recipients, *(m.person_id for m in asks)]:
+        person = session.get_one(Person, person_id)
+        first = names[person.id]
+        if person.stopped:
+            skipped.append(f"{first} turned messages off.")
+        elif not person.opted_in:
+            skipped.append(f"{first} hasn't connected to chat yet.")
+        else:
+            sent.append(person.id)
     return AskSendOut(
         text=_sent_text([names[p] for p in sent], skipped), sent=sent, skipped=skipped
     )
 
 
-def _close_covered_reminders(ctx: Context, gathering_ids: set[str]) -> None:
+def _close_covered_reminders(ctx: Context, gathering_ids: set[uuid.UUID]) -> None:
     """Home's pending reminders for a service Ask just covered would send nothing: close
     them (rejected by the leader, audited) instead of leaving an empty card."""
     service = ApprovalService(ctx.session)
-    for p in ctx.session.scalars(
-        select(Proposal).where(
-            Proposal.church_id == ctx.church_id,
-            Proposal.type == reminders.PROPOSAL_TYPE,
-            Proposal.status == ProposalStatus.PENDING,
-        )
-    ):
-        if p.payload.get("ministry_id") != str(ctx.ministry.id):
-            continue
-        if p.payload.get("gathering_id") not in gathering_ids:
+    for proposal_id, payload in pending_reminders(ctx.session, ctx.church_id).items():
+        if payload.ministry_id != ctx.ministry.id or payload.gathering_id not in gathering_ids:
             continue
         if all(
-            not still_on_roster(ctx.session, ctx.church_id, m)
-            or already_reminded(ctx.session, ctx.church_id, uuid.UUID(m["assignment_id"]))
-            for m in p.payload["messages"]
+            not still_on_roster(ctx.session, ctx.church_id, m.assignment_id, m.person_id)
+            or already_reminded(ctx.session, ctx.church_id, m.assignment_id)
+            for m in payload.messages
         ):
-            service.reject(ctx.church_id, p.id, ctx.leader.id)
+            service.reject(ctx.church_id, proposal_id, ctx.leader.id)
 
 
 def _sent_text(sent: list[str], skipped: list[str]) -> str:
@@ -794,9 +797,10 @@ def _remember(ctx: Context, person: TeamMember) -> AskAnswer:
         or re.search(rf"\b{re.escape(person.first)}\b", m.text)
     ]
     pending = [
-        p.payload["text"]
+        payload.text
         for p in pending_memory_proposals(ctx.session, ctx.church_id, ctx.ministry.id)
-        if p.payload.get("about_person_id") == str(person.person_id)
+        for payload in [MemoryPayload.model_validate(p.payload)]
+        if payload.about_person_id == person.person_id
     ]
     notes = [m.text for m in items]
     notes += [f"Waiting for you to confirm: “{text}”" for text in pending]

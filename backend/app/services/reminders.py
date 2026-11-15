@@ -24,9 +24,9 @@ from app.db.models import (
     Role,
 )
 from app.db.repositories.proposals import ProposalRepository
-from app.domain.enums import AssignmentStatus, MessageStatus, ProposalStatus
+from app.domain.enums import AssignmentStatus, MessageStatus, ProposalStatus, ProposalType
+from app.domain.proposals import ReminderMessage, RemindersPayload
 
-PROPOSAL_TYPE = "reminders"
 BUTTONS = ["Yes, I'll be there", "I can't make it"]
 DAYS_AHEAD = 7
 
@@ -40,20 +40,20 @@ def reminder_text(first: str, ministry: str, role: str, start: datetime, today: 
     )
 
 
-def still_on_roster(session: Session, church_id: uuid.UUID, item: dict[str, str]) -> bool:
+def still_on_roster(
+    session: Session, church_id: uuid.UUID, assignment_id: uuid.UUID, person_id: uuid.UUID
+) -> bool:
     """Whether a drafted reminder still matches the roster: same person, place not declined.
 
     Rosters change after drafting (a huddle Resolve, a decline, a swap). The approval card
     and sending both use this, so a reminder is never sent for a place someone left.
     """
     assignment = session.scalar(
-        select(Assignment).where(
-            Assignment.church_id == church_id, Assignment.id == uuid.UUID(item["assignment_id"])
-        )
+        select(Assignment).where(Assignment.church_id == church_id, Assignment.id == assignment_id)
     )
     return (
         assignment is not None
-        and str(assignment.person_id) == item["person_id"]
+        and assignment.person_id == person_id
         and assignment.status is not AssignmentStatus.DECLINED
     )
 
@@ -71,6 +71,20 @@ def already_reminded(session: Session, church_id: uuid.UUID, assignment_id: uuid
         )
         is not None
     )
+
+
+def pending_reminders(session: Session, church_id: uuid.UUID) -> dict[uuid.UUID, RemindersPayload]:
+    """The church's reminders still waiting for a leader, by proposal id."""
+    return {
+        p.id: RemindersPayload.model_validate(p.payload)
+        for p in session.scalars(
+            select(Proposal).where(
+                Proposal.church_id == church_id,
+                Proposal.type == ProposalType.REMINDERS,
+                Proposal.status == ProposalStatus.PENDING,
+            )
+        )
+    }
 
 
 def draft_reminders(
@@ -110,38 +124,32 @@ def draft_reminders(
         )
     )
     pending = {
-        (p.payload["gathering_id"])
-        for p in session.scalars(
-            select(Proposal).where(
-                Proposal.church_id == church_id,
-                Proposal.type == PROPOSAL_TYPE,
-                Proposal.status == ProposalStatus.PENDING,
-            )
-        )
-        if p.payload.get("ministry_id") == str(ministry_id)
+        payload.gathering_id
+        for payload in pending_reminders(session, church_id).values()
+        if payload.ministry_id == ministry_id
     }
-    by_gathering: dict[uuid.UUID, list[dict[str, str]]] = {}
+    by_gathering: dict[uuid.UUID, list[ReminderMessage]] = {}
     for a, g, person, role in rows:
-        if person.id in leaders or a.id in reminded or str(g.id) in pending:
+        if person.id in leaders or a.id in reminded or g.id in pending:
             continue
         local = g.start_at.astimezone(tz)
         by_gathering.setdefault(g.id, []).append(
-            {
-                "assignment_id": str(a.id),
-                "person_id": str(person.id),
-                "body": reminder_text(person.name.split(" ")[0], ministry.name, role, local, today),
-            }
+            ReminderMessage(
+                assignment_id=a.id,
+                person_id=person.id,
+                body=reminder_text(person.name.split(" ")[0], ministry.name, role, local, today),
+            )
         )
     repo = ProposalRepository(session, church_id)
     return [
         repo.create(
-            type=PROPOSAL_TYPE,
-            payload={
-                "ministry_id": str(ministry_id),
-                "gathering_id": str(gathering_id),
-                "messages": messages,
-                "buttons": BUTTONS,
-            },
+            type=ProposalType.REMINDERS,
+            payload=RemindersPayload(
+                ministry_id=ministry_id,
+                gathering_id=gathering_id,
+                messages=messages,
+                buttons=BUTTONS,
+            ),
             created_by_agent="weekly_check",
         )
         for gathering_id, messages in by_gathering.items()

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import Church, Gathering, GatheringType, Ministry, Person, Role
-from app.domain.enums import ProposalStatus
+from app.domain.enums import ProposalStatus, ProposalType
 from app.domain.profile import ChurchProfileDraft
 from app.domain.schemas import ProposalOut
 from app.services.profile import format_time, render_summary
@@ -24,12 +24,12 @@ def describe(
 
 def _text(p: ProposalOut, names: "_Names") -> dict[str, Any]:
     payload: dict[str, Any] = p.payload
-    if p.type == "church_profile":
+    if p.type == ProposalType.CHURCH_PROFILE:
         return {
             "title": "Church profile",
             "summary": render_summary(ChurchProfileDraft.model_validate(payload)),
         }
-    if p.type == "leader_roster":
+    if p.type == ProposalType.LEADER_ROSTER:
         ministry = names.ministry(payload["ministry_id"])
         lines = [
             f"• {names.gathering(a['gathering_id'])} · {names.role(a['role_id'])} · {names.person(a['person_id'])}"
@@ -44,7 +44,7 @@ def _text(p: ProposalOut, names: "_Names") -> dict[str, Any]:
             "title": f"{ministry} roster ({count} assignment{'s' if count != 1 else ''})",
             "summary": "\n".join(lines),
         }
-    if p.type == "memory":
+    if p.type == ProposalType.MEMORY:
         ministry = names.ministry(payload["ministry_id"])
         about = (
             f" about {names.person(payload['about_person_id'])}"
@@ -55,13 +55,18 @@ def _text(p: ProposalOut, names: "_Names") -> dict[str, Any]:
             "title": f"Should I remember this? ({ministry})",
             "summary": f"“{payload['text']}”{about}",
         }
-    if p.type == "reminders":
+    if p.type == ProposalType.REMINDERS:
         current: list[dict[str, str]] = []
         left: list[dict[str, str]] = []
         already: list[dict[str, str]] = []
         pending = p.status is ProposalStatus.PENDING
         for m in payload.get("messages", []):
-            if not still_on_roster(names.session, names.church_id, m):
+            if not still_on_roster(
+                names.session,
+                names.church_id,
+                uuid.UUID(m["assignment_id"]),
+                uuid.UUID(m["person_id"]),
+            ):
                 left.append(m)
             elif pending and already_reminded(
                 names.session, names.church_id, uuid.UUID(m["assignment_id"])

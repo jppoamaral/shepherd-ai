@@ -6,7 +6,6 @@ connected to chat yet are skipped and counted, never messaged. The swap, like th
 Resolve, messages no one: the person whose place it was isn't told by Shepherd.
 """
 
-import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -19,13 +18,18 @@ from app.db.models import Assignment, Church, Gathering, Person, Proposal
 from app.db.repositories.assignments import AssignmentWriter
 from app.db.repositories.messages import MessageWriter
 from app.domain.enums import AssignmentSource, AssignmentStatus
+from app.domain.proposals import MinistryPayload, ServeAskPayload, ServeAskSwapPayload
 from app.services.checks_runner import run_checks
 from app.services.errors import ApprovalError
 from app.services.huddle_replacement import free_candidates
-from app.services.reminders_apply import may_decide
-from app.services.serve_ask import BUTTONS, PROPOSAL_TYPE, SWAP_TYPE
+from app.services.reminders_apply import approves
+from app.services.serve_ask import BUTTONS
 
-__all__ = ["PROPOSAL_TYPE", "SWAP_TYPE", "apply", "apply_swap", "may_decide"]
+
+def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
+    """A leader of the ministry who approves its rosters."""
+    ministry_id = MinistryPayload.model_validate(proposal.payload).ministry_id
+    return approves(session, proposal.church_id, ministry_id, person)
 
 
 def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, Any]:
@@ -34,9 +38,9 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
     channel = channel_for(session, church)
     writer = MessageWriter(session, cid)
     sent, failed, stopped, not_connected = 0, 0, 0, 0
-    for item in proposal.payload["messages"]:
+    for item in ServeAskPayload.model_validate(proposal.payload).messages:
         person = session.scalar(
-            select(Person).where(Person.church_id == cid, Person.id == uuid.UUID(item["person_id"]))
+            select(Person).where(Person.church_id == cid, Person.id == item.person_id)
         )
         if person is None:
             continue
@@ -49,13 +53,11 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
         message = writer.create(
             person_id=person.id,
             channel=channel_name(church),
-            body=item["body"],
+            body=item.body,
             kind="ask",
-            gathering_id=uuid.UUID(item["gathering_id"]),
-            role_id=uuid.UUID(item["role_id"]),
-            replaces_assignment_id=uuid.UUID(item["replaces_assignment_id"])
-            if item.get("replaces_assignment_id")
-            else None,
+            gathering_id=item.gathering_id,
+            role_id=item.role_id,
+            replaces_assignment_id=item.replaces_assignment_id,
             buttons=list(BUTTONS),
         )
         result = channel.send(
@@ -64,7 +66,7 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
                 person_id=person.id,
                 person_name=person.name,
                 channel_identity=person.channel_identity,
-                body=item["body"],
+                body=item.body,
                 buttons=tuple(BUTTONS),
             )
         )
@@ -82,14 +84,14 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
 def apply_swap(session: Session, proposal: Proposal, approver: Person) -> dict[str, Any]:
     """They said yes, so they take the place over, confirmed. The checks re-run."""
     cid = proposal.church_id
-    payload = proposal.payload
+    payload = ServeAskSwapPayload.model_validate(proposal.payload)
     assignment = session.scalar(
         select(Assignment).where(
-            Assignment.church_id == cid, Assignment.id == uuid.UUID(payload["assignment_id"])
+            Assignment.church_id == cid, Assignment.id == payload.assignment_id
         )
     )
-    from_id = uuid.UUID(payload["from_person_id"])
-    to_id = uuid.UUID(payload["to_person_id"])
+    from_id = payload.from_person_id
+    to_id = payload.to_person_id
     names = dict(
         session.execute(
             select(Person.id, Person.name).where(
@@ -102,7 +104,7 @@ def apply_swap(session: Session, proposal: Proposal, approver: Person) -> dict[s
         assignment is None
         or assignment.person_id != from_id
         or assignment.status is AssignmentStatus.DECLINED
-        or str(assignment.ministry_id) != payload["ministry_id"]
+        or assignment.ministry_id != payload.ministry_id
     ):
         raise ApprovalError(f"{from_first}'s place has changed since.")
     gathering = session.get_one(Gathering, assignment.gathering_id)
