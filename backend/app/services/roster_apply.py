@@ -74,7 +74,10 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
             )
         )
     )
-    wanted = [(a.gathering_id, a.role_id, a.person_id) for a in payload.assignments]
+    # The same person twice in one role at one gathering is one place, not two.
+    wanted = list(
+        dict.fromkeys((a.gathering_id, a.role_id, a.person_id) for a in payload.assignments)
+    )
     reasons = {(a.gathering_id, a.role_id, a.person_id): a.reason for a in payload.assignments}
     # A roster the leader pasted (intake) vs. one Shepherd suggested and the leader approved.
     source = (

@@ -128,3 +128,31 @@ def test_an_edit_that_double_books_is_flagged_before_approval_and_found_after(
     assert not overlap_findings()
     assert client.post(f"{base}/approve", json=body).status_code == 200
     assert len(overlap_findings()) == 1
+
+
+def test_the_same_person_twice_in_one_role_is_one_place_and_the_gap_is_flagged(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    s = get_suggestion(client, grace)
+    filled = [line for line in s["lines"] if line["person_id"]]
+    first = next(
+        a
+        for a in filled
+        for b in filled
+        if a is not b and (a["gathering_id"], a["role_id"]) == (b["gathering_id"], b["role_id"])
+    )
+    place = {k: first[k] for k in ("gathering_id", "role_id", "person_id")}
+    body = {"person_id": grace["leaders"]["Sarah Collins"], "assignments": [place, place]}
+    base = f"/churches/{grace['id']}/ministries/{grace['ministries']['Kids']}/suggestion"
+
+    warnings = client.post(f"{base}/check", json=body).json()["warnings"]
+    assert [w["type"] for w in warnings if first["role"] in w["text"]] == ["below_minimum"]
+    assert client.post(f"{base}/approve", json=body).status_code == 200
+    rows = session.scalars(
+        select(Assignment).where(
+            Assignment.gathering_id == first["gathering_id"],
+            Assignment.role_id == first["role_id"],
+            Assignment.person_id == first["person_id"],
+        )
+    ).all()
+    assert len(rows) == 1
