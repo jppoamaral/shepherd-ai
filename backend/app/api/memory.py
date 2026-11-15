@@ -6,13 +6,13 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.api.routes import ReaderDep
+from app.db.repositories.reads import is_ministry_leader
 from app.domain.enums import MemorySource
 from app.domain.schemas import MemoryNote, MemoryOut, MemoryPendingOut
 from app.services.memory import (
     MemoryNotAllowed,
     MemoryRefused,
     delete_memory,
-    is_leader,
     memory_view,
     propose_memory,
 )
@@ -36,7 +36,7 @@ def get_memory(reader: ReaderDep, ministry_id: uuid.UUID) -> MemoryOut:
 def note(reader: ReaderDep, ministry_id: uuid.UUID, body: MemoryNote) -> MemoryPendingOut:
     """A leader's note becomes a memory proposal to confirm; private content is refused."""
     session = reader.session
-    if not is_leader(session, reader.church_id, ministry_id, body.person_id):
+    if not is_ministry_leader(session, reader.church_id, ministry_id, body.person_id):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "only this ministry's leaders can add memories"
         )

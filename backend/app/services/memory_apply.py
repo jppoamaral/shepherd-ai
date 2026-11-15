@@ -5,17 +5,18 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db.models import MemoryItem, Person, Proposal
+from app.db.repositories.reads import is_ministry_leader
 from app.domain.proposals import MemoryPayload
 from app.domain.schemas import ProposalOut
 from app.services.errors import ApprovalError
-from app.services.memory import is_leader, private_reason
+from app.services.memory import private_reason
 from app.services.names import Names, ProposalText
 
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     """Any leader of the memory's ministry may confirm it."""
     payload = MemoryPayload.model_validate(proposal.payload)
-    return is_leader(session, proposal.church_id, payload.ministry_id, person.id)
+    return is_ministry_leader(session, proposal.church_id, payload.ministry_id, person.id)
 
 
 def describe(names: Names, proposal: ProposalOut) -> ProposalText:

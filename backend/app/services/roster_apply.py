@@ -14,12 +14,12 @@ from sqlalchemy.orm import Session
 from app.db.models import (
     Assignment,
     Membership,
-    MinistryLeader,
     Person,
     Proposal,
     ScheduleIntake,
 )
 from app.db.repositories.assignments import AssignmentWriter
+from app.db.repositories.reads import is_ministry_leader
 from app.domain.enums import (
     AssignmentSource,
     AssignmentStatus,
@@ -34,18 +34,8 @@ from app.services.names import Names, ProposalText
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     """An approver of the ministry the roster is for."""
-    return (
-        session.scalar(
-            select(MinistryLeader.id).where(
-                MinistryLeader.church_id == proposal.church_id,
-                MinistryLeader.ministry_id
-                == LeaderRosterPayload.model_validate(proposal.payload).ministry_id,
-                MinistryLeader.person_id == person.id,
-                MinistryLeader.can_approve,
-            )
-        )
-        is not None
-    )
+    ministry_id = LeaderRosterPayload.model_validate(proposal.payload).ministry_id
+    return is_ministry_leader(session, proposal.church_id, ministry_id, person.id, can_approve=True)
 
 
 def describe(names: Names, proposal: ProposalOut) -> ProposalText:

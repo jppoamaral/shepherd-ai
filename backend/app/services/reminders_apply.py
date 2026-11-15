@@ -4,7 +4,6 @@ Called only by ApprovalService. People who turned reminders off ("stop") or who
 haven't connected to chat yet are skipped and counted, never messaged.
 """
 
-import uuid
 from typing import Any
 
 from sqlalchemy import select
@@ -12,8 +11,9 @@ from sqlalchemy.orm import Session
 
 from app.channels.base import OutgoingMessage
 from app.channels.factory import channel_for, channel_name
-from app.db.models import Assignment, Church, MinistryLeader, Person, Proposal
+from app.db.models import Assignment, Church, Person, Proposal
 from app.db.repositories.messages import MessageWriter
+from app.db.repositories.reads import is_ministry_leader
 from app.domain.enums import ProposalStatus
 from app.domain.proposals import RemindersPayload
 from app.domain.schemas import ProposalOut
@@ -24,23 +24,7 @@ from app.services.reminders import already_reminded, still_on_roster
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     """A leader of the ministry who approves its rosters."""
     ministry_id = RemindersPayload.model_validate(proposal.payload).ministry_id
-    return approves(session, proposal.church_id, ministry_id, person)
-
-
-def approves(
-    session: Session, church_id: uuid.UUID, ministry_id: uuid.UUID, person: Person
-) -> bool:
-    return (
-        session.scalar(
-            select(MinistryLeader.id).where(
-                MinistryLeader.church_id == church_id,
-                MinistryLeader.ministry_id == ministry_id,
-                MinistryLeader.person_id == person.id,
-                MinistryLeader.can_approve,
-            )
-        )
-        is not None
-    )
+    return is_ministry_leader(session, proposal.church_id, ministry_id, person.id, can_approve=True)
 
 
 def describe(names: Names, proposal: ProposalOut) -> ProposalText:

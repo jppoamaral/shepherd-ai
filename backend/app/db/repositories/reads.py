@@ -50,6 +50,43 @@ def list_churches(session: Session) -> list[ChurchOut]:
     return [ChurchReader(session, c.id).church() for c in churches]
 
 
+def is_ministry_leader(
+    session: Session,
+    church_id: uuid.UUID,
+    ministry_id: uuid.UUID,
+    person_id: uuid.UUID,
+    *,
+    can_schedule: bool | None = None,
+    can_approve: bool | None = None,
+) -> bool:
+    """Whether this person leads this ministry, optionally with a given duty.
+
+    The one permission check for "is this their ministry?"; pass `can_approve=True` for
+    what only an approver may do.
+    """
+    query = select(MinistryLeader.id).where(
+        MinistryLeader.church_id == church_id,
+        MinistryLeader.ministry_id == ministry_id,
+        MinistryLeader.person_id == person_id,
+    )
+    if can_schedule is not None:
+        query = query.where(MinistryLeader.can_schedule == can_schedule)
+    if can_approve is not None:
+        query = query.where(MinistryLeader.can_approve == can_approve)
+    return session.scalar(query) is not None
+
+
+def ministries_led(session: Session, church_id: uuid.UUID, person_id: uuid.UUID) -> set[uuid.UUID]:
+    """The ministries this person leads."""
+    return set(
+        session.scalars(
+            select(MinistryLeader.ministry_id).where(
+                MinistryLeader.church_id == church_id, MinistryLeader.person_id == person_id
+            )
+        )
+    )
+
+
 class ChurchReader:
     def __init__(self, session: Session, church_id: uuid.UUID) -> None:
         self.session = session

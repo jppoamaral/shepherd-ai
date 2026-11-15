@@ -17,19 +17,19 @@ from app.channels.factory import channel_for, channel_name
 from app.db.models import Assignment, Church, Gathering, Person, Proposal
 from app.db.repositories.assignments import AssignmentWriter
 from app.db.repositories.messages import MessageWriter
+from app.db.repositories.reads import is_ministry_leader
 from app.domain.enums import AssignmentSource, AssignmentStatus
 from app.domain.proposals import MinistryPayload, ServeAskPayload, ServeAskSwapPayload
 from app.services.checks_runner import run_checks
 from app.services.errors import ApprovalError
 from app.services.huddle_replacement import free_candidates
-from app.services.reminders_apply import approves
 from app.services.serve_ask import BUTTONS
 
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     """A leader of the ministry who approves its rosters."""
     ministry_id = MinistryPayload.model_validate(proposal.payload).ministry_id
-    return approves(session, proposal.church_id, ministry_id, person)
+    return is_ministry_leader(session, proposal.church_id, ministry_id, person.id, can_approve=True)
 
 
 def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, Any]:

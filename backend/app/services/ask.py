@@ -35,6 +35,7 @@ from app.db.models import (
     RoleSkill,
 )
 from app.db.repositories.proposals import ProposalRepository
+from app.db.repositories.reads import is_ministry_leader
 from app.domain.ask import ParsedQuestion
 from app.domain.enums import (
     AskIntent,
@@ -68,7 +69,7 @@ from app.services import reminders
 from app.services.approval import ApprovalService
 from app.services.briefing import briefing, church_today, roster
 from app.services.huddle_replacement import EXPERIENCE_RANK, free_candidates, unavailable_on
-from app.services.memory import is_leader, pending_memory_proposals, private_reason
+from app.services.memory import pending_memory_proposals, private_reason
 from app.services.profile import format_time
 from app.services.reminders import (
     already_reminded,
@@ -974,7 +975,7 @@ def _context(
     )
     if ministry is None:
         raise AskNotFound("ministry not found")
-    if not is_leader(session, church_id, ministry_id, person_id):
+    if not is_ministry_leader(session, church_id, ministry_id, person_id):
         raise AskNotAllowed("only this ministry's leaders can ask about it")
     leader = session.get_one(Person, person_id)
     church = session.get_one(Church, church_id)

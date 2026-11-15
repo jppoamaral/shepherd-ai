@@ -19,11 +19,11 @@ from app.db.models import (
     LeaderNotice,
     Membership,
     Ministry,
-    MinistryLeader,
     Person,
     SimulatorMessage,
 )
 from app.db.repositories.notices import NoticeWriter
+from app.db.repositories.reads import is_ministry_leader, ministries_led
 from app.domain.enums import MembershipStatus
 from app.domain.schemas import (
     ChatIn,
@@ -139,13 +139,7 @@ def draft(reader: ReaderDep, ministry_id: uuid.UUID, today: TodayDep) -> list[Pr
 @router.get("/churches/{church_id}/leaders/{person_id}/notices")
 def notices(reader: ReaderDep, person_id: uuid.UUID) -> list[NoticeOut]:
     """What volunteers asked Shepherd to pass on, for the ministries this person leads."""
-    led = set(
-        reader.session.scalars(
-            select(MinistryLeader.ministry_id).where(
-                MinistryLeader.church_id == reader.church_id, MinistryLeader.person_id == person_id
-            )
-        )
-    )
+    led = ministries_led(reader.session, reader.church_id, person_id)
     rows = reader.session.execute(
         select(LeaderNotice, Person.name)
         .join(Person, Person.id == LeaderNotice.about_person_id)
@@ -183,14 +177,7 @@ def dismiss(reader: ReaderDep, notice_id: uuid.UUID, person_id: uuid.UUID) -> No
     )
     if notice is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "notice not found")
-    leads = session.scalar(
-        select(MinistryLeader.id).where(
-            MinistryLeader.church_id == reader.church_id,
-            MinistryLeader.ministry_id == notice.ministry_id,
-            MinistryLeader.person_id == person_id,
-        )
-    )
-    if leads is None:
+    if not is_ministry_leader(session, reader.church_id, notice.ministry_id, person_id):
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(NotAllowed("not your ministry")))
     NoticeWriter(session, reader.church_id).dismiss(notice_id)
     session.commit()

@@ -27,6 +27,7 @@ from app.db.models import (
     Person,
 )
 from app.db.repositories.proposals import ProposalRepository
+from app.db.repositories.reads import ministries_led
 from app.domain.enums import (
     FindingStatus,
     FindingType,
@@ -98,7 +99,7 @@ def start_huddle(
     church = session.get_one(Church, church_id)
     tz = ZoneInfo(church.timezone)
     sides: list[dict[str, str]] = finding.details["sides"]
-    led = _ministries_led(session, church_id, person_id)
+    led = ministries_led(session, church_id, person_id)
     mine = next((s for s in sides if uuid.UUID(s["ministry_id"]) in led), None)
     theirs = next(
         (s for s in sides if s is not mine and uuid.UUID(s["ministry_id"]) not in led), None
@@ -310,16 +311,6 @@ def _load(
     if person_id not in huddle.leader_person_ids:
         raise HuddleNotAllowed("only the two leaders in this huddle can do that")
     return huddle
-
-
-def _ministries_led(session: Session, church_id: uuid.UUID, person_id: uuid.UUID) -> set[uuid.UUID]:
-    return set(
-        session.scalars(
-            select(MinistryLeader.ministry_id).where(
-                MinistryLeader.church_id == church_id, MinistryLeader.person_id == person_id
-            )
-        )
-    )
 
 
 def _leader_of(

@@ -13,9 +13,10 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import MemoryItem, Ministry, MinistryLeader, Person, Proposal
+from app.db.models import MemoryItem, Ministry, Person, Proposal
 from app.db.repositories.audit import AuditLogRepository
 from app.db.repositories.proposals import ProposalRepository
+from app.db.repositories.reads import is_ministry_leader
 from app.domain.enums import MemoryKind, MemorySource, ProposalStatus, ProposalType
 from app.domain.proposals import MemoryPayload
 from app.domain.schemas import MemoryItemOut, MemoryOut, MemoryPendingOut
@@ -52,21 +53,6 @@ def private_reason(text: str) -> str | None:
             "I won't remember that; please handle it with the person directly."
         )
     return None
-
-
-def is_leader(
-    session: Session, church_id: uuid.UUID, ministry_id: uuid.UUID, person_id: uuid.UUID
-) -> bool:
-    return (
-        session.scalar(
-            select(MinistryLeader.id).where(
-                MinistryLeader.church_id == church_id,
-                MinistryLeader.ministry_id == ministry_id,
-                MinistryLeader.person_id == person_id,
-            )
-        )
-        is not None
-    )
 
 
 def propose_memory(
@@ -110,7 +96,7 @@ def delete_memory(
     person_id: uuid.UUID,
 ) -> None:
     """A leader deletes a memory: it stops shaping suggestions at once, and the deletion is logged."""
-    if not is_leader(session, church_id, ministry_id, person_id):
+    if not is_ministry_leader(session, church_id, ministry_id, person_id):
         raise MemoryNotAllowed("only this ministry's leaders can delete its memories")
     item = session.scalar(
         select(MemoryItem).where(

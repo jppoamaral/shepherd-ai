@@ -13,8 +13,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Assignment, Finding, Huddle, MinistryLeader, Person, Proposal
+from app.db.models import Assignment, Finding, Huddle, Person, Proposal
 from app.db.repositories.assignments import AssignmentWriter
+from app.db.repositories.reads import is_ministry_leader
 from app.domain.enums import (
     AssignmentSource,
     AssignmentStatus,
@@ -35,17 +36,7 @@ def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     side = _side_ministry(huddle, proposal)
     if side is None:
         return True  # nothing to undo; apply says so
-    return (
-        session.scalar(
-            select(MinistryLeader.id).where(
-                MinistryLeader.church_id == proposal.church_id,
-                MinistryLeader.ministry_id == side,
-                MinistryLeader.person_id == person.id,
-                MinistryLeader.can_approve,
-            )
-        )
-        is not None
-    )
+    return is_ministry_leader(session, proposal.church_id, side, person.id, can_approve=True)
 
 
 def apply_accept(session: Session, proposal: Proposal, approver: Person) -> dict[str, Any]:
