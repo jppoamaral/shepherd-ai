@@ -5,8 +5,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Assignment, AuditLog
-from app.domain.enums import AssignmentSource
+from app.db.models import Assignment, AuditLog, Finding
+from app.domain.enums import AssignmentSource, FindingStatus, FindingType
 from tests.conftest import GRACE
 
 
@@ -75,3 +75,56 @@ def test_approving_an_edited_suggestion_records_it_through_approval(
     ).one()
     assert (row.source, row.reason) == (AssignmentSource.SUGGESTION, "Leader's choice")
     assert session.scalars(select(AuditLog).where(AuditLog.target_id == proposal["id"])).one()
+
+
+def test_an_edit_that_double_books_is_flagged_before_approval_and_found_after(
+    client: TestClient, grace: dict, session: Session
+) -> None:
+    """Brief section 11: the checks re-run on the leader's edited roster."""
+    s = get_suggestion(client, grace)
+    filled = [line for line in s["lines"] if line["person_id"]]
+    first, second = next(
+        (a, b)
+        for a in filled
+        for b in filled
+        if a["gathering_id"] == b["gathering_id"] and a["person_id"] != b["person_id"]
+    )
+    # The leader's edit: the same person in both places at one gathering.
+    chosen = [
+        {
+            "gathering_id": x["gathering_id"],
+            "role_id": x["role_id"],
+            "person_id": first["person_id"],
+        }
+        for x in (first, second)
+    ]
+    body = {"person_id": grace["leaders"]["Sarah Collins"], "assignments": chosen}
+    base = f"/churches/{grace['id']}/ministries/{grace['ministries']['Kids']}/suggestion"
+
+    def overlap_findings() -> list[Finding]:
+        found = session.scalars(
+            select(Finding).where(
+                Finding.type == FindingType.OVERLAP,
+                Finding.status == FindingStatus.OPEN,
+                Finding.gathering_id == first["gathering_id"],
+            )
+        )
+        return [f for f in found if first["person_id"] in map(str, f.person_ids)]
+
+    # As suggested, the roster raises no double booking.
+    untouched = [
+        {k: x[k] for k in ("gathering_id", "role_id", "person_id")} for x in (first, second)
+    ]
+    plain = client.post(f"{base}/check", json={**body, "assignments": untouched})
+    assert plain.status_code == 200, plain.text
+    assert not [w for w in plain.json()["warnings"] if w["type"] == "overlap"]
+
+    checked = client.post(f"{base}/check", json=body)
+    assert checked.status_code == 200, checked.text
+    warnings = [w for w in checked.json()["warnings"] if w["type"] == "overlap"]
+    assert len(warnings) == 1 and first["name"] in warnings[0]["text"]
+    assert "booked twice" in warnings[0]["text"]
+    # Checking saves nothing, and the warning doesn't block approval.
+    assert not overlap_findings()
+    assert client.post(f"{base}/approve", json=body).status_code == 200
+    assert len(overlap_findings()) == 1

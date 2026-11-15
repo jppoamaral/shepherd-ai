@@ -445,6 +445,18 @@ class SuggestionApprove(BaseModel):
     assignments: list[SuggestedAssignment] = Field(min_length=1)
 
 
+class CheckWarning(BaseModel):
+    """Something the checks would flag if this roster were approved. Never a block."""
+
+    type: FindingType
+    severity: str  # "warning" or "noted"
+    text: str
+
+
+class SuggestionCheckOut(BaseModel):
+    warnings: list[CheckWarning]
+
+
 # ---------------------------------------------------------------------------
 # Ask Shepherd
 # ---------------------------------------------------------------------------

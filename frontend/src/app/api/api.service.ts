@@ -23,6 +23,7 @@ import type {
   Proposal,
   Roster,
   SuggestedAssignment,
+  CheckWarning,
   Suggestion,
 } from './types';
 
@@ -57,6 +58,19 @@ export class ApiService {
 
   suggestion(churchId: string, ministryId: string): Observable<Suggestion> {
     return this.http.get<Suggestion>(`${this.base}/churches/${churchId}/ministries/${ministryId}/suggestion`);
+  }
+
+  /** What approving this roster would newly flag. Saves nothing. */
+  checkSuggestion(
+    churchId: string,
+    ministryId: string,
+    personId: string,
+    assignments: SuggestedAssignment[],
+  ): Observable<{ warnings: CheckWarning[] }> {
+    return this.http.post<{ warnings: CheckWarning[] }>(
+      `${this.base}/churches/${churchId}/ministries/${ministryId}/suggestion/check`,
+      { person_id: personId, assignments },
+    );
   }
 
   approveSuggestion(

@@ -7,8 +7,15 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import ReaderDep
-from app.domain.schemas import ProposalOut, SuggestionApprove, SuggestionOut
+from app.domain.schemas import (
+    CheckWarning,
+    ProposalOut,
+    SuggestionApprove,
+    SuggestionCheckOut,
+    SuggestionOut,
+)
 from app.services.briefing import church_today
+from app.services.checks_runner import preview_checks
 from app.services.proposal_text import describe
 from app.services.suggestion import approve_suggestion, suggest
 
@@ -31,6 +38,20 @@ def get_suggestion(
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ministry not found")
     return result
+
+
+@router.post("/churches/{church_id}/ministries/{ministry_id}/suggestion/check")
+def check(reader: ReaderDep, ministry_id: uuid.UUID, body: SuggestionApprove) -> SuggestionCheckOut:
+    """What approving this (possibly edited) roster would newly flag. Nothing is saved."""
+    issues = preview_checks(
+        reader.session,
+        reader.church_id,
+        ministry_id,
+        [(a.gathering_id, a.role_id, a.person_id) for a in body.assignments],
+    )
+    return SuggestionCheckOut(
+        warnings=[CheckWarning(type=i.type, severity=i.severity, text=i.text) for i in issues]
+    )
 
 
 @router.post("/churches/{church_id}/ministries/{ministry_id}/suggestion/approve")

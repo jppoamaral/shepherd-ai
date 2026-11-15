@@ -8,6 +8,7 @@ it no longer does.
 
 import uuid
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -32,6 +33,7 @@ from app.domain.checks import AssignmentFact, Issue, LoadRuleFact, PreferenceFac
 from app.domain.enums import AssignmentStatus, FindingStatus, FindingType, Recipient
 from app.domain.profile import default_routing
 from app.services.checks import below_minimum, load, overlaps
+from app.services.errors import NotFound
 
 CHECKED_TYPES = (FindingType.OVERLAP, FindingType.LOAD, FindingType.BELOW_MINIMUM)
 # Load buckets (weeks, months) can start before or end after the window.
@@ -43,23 +45,7 @@ def run_checks(session: Session, church_id: uuid.UUID, start: date, end: date) -
     church = session.get_one(Church, church_id)
     tz = ZoneInfo(church.timezone)
     facts = _assignment_facts(session, church_id, tz, start - CONTEXT, end + CONTEXT)
-
-    rules = [
-        LoadRuleFact(r.period, r.normal_max, r.warning_above)
-        for r in session.scalars(select(LoadRule).where(LoadRule.church_id == church_id))
-    ]
-    preferences: dict[object, PreferenceFact] = {
-        p.person_id: PreferenceFact(p.preferred_frequency, p.preferred_frequency_period)
-        for p in session.scalars(select(Preference).where(Preference.church_id == church_id))
-        if p.preferred_frequency is not None and p.preferred_frequency_period is not None
-    }
-
-    issues = [
-        *overlaps(facts),
-        *load(facts, rules, preferences, church.name),
-        *below_minimum(_role_needs(session, church_id, tz, facts, start, end)),
-    ]
-    issues = [i for i in issues if _in_window(i, start, end)]
+    issues = _issues(session, church, tz, facts, start, end)
     recipients = _recipients(session, church, issues)
 
     existing = {
@@ -97,6 +83,115 @@ def run_checks(session: Session, church_id: uuid.UUID, start: date, end: date) -
             finding.status = FindingStatus.RESOLVED
     session.flush()
     return current
+
+
+def preview_checks(
+    session: Session,
+    church_id: uuid.UUID,
+    ministry_id: uuid.UUID,
+    lines: Sequence[tuple[uuid.UUID, uuid.UUID, uuid.UUID]],
+) -> list[Issue]:
+    """What approving these (gathering, role, person) places would newly flag. Writes nothing.
+
+    The checks run twice, on the record as it stands and with the places added;
+    an issue counts when it is new or its wording changed (a higher count).
+    """
+    church = session.get_one(Church, church_id)
+    tz = ZoneInfo(church.timezone)
+    ministry = session.scalar(
+        select(Ministry).where(Ministry.church_id == church_id, Ministry.id == ministry_id)
+    )
+    if ministry is None:
+        raise NotFound("ministry not found")
+    gatherings = {
+        g.id: (g, name)
+        for g, name in session.execute(
+            select(Gathering, GatheringType.name)
+            .join(GatheringType, GatheringType.id == Gathering.gathering_type_id)
+            .where(Gathering.church_id == church_id, Gathering.id.in_({g for g, _, _ in lines}))
+        )
+    }
+    people = {
+        row.id: row.name
+        for row in session.execute(
+            select(Person.id, Person.name).where(
+                Person.church_id == church_id, Person.id.in_({p for _, _, p in lines})
+            )
+        )
+    }
+    roles = {
+        row.id: row.name
+        for row in session.execute(
+            select(Role.id, Role.name).where(
+                Role.church_id == church_id,
+                Role.ministry_id == ministry_id,
+                Role.id.in_({r for _, r, _ in lines}),
+            )
+        )
+    }
+    if any(g not in gatherings or r not in roles or p not in people for g, r, p in lines):
+        raise NotFound("a gathering, role or person in this roster wasn't found")
+    if not lines:
+        return []
+
+    days = [g.start_at.astimezone(tz).date() for g, _ in gatherings.values()]
+    start, end = min(days), max(days) + timedelta(days=1)
+    before = _assignment_facts(session, church_id, tz, start - CONTEXT, end + CONTEXT)
+    recorded = {(a.gathering_id, a.role_id, a.person_id) for a in before}
+    added = []
+    for gathering_id, role_id, person_id in dict.fromkeys(lines):
+        if (gathering_id, role_id, person_id) in recorded:
+            continue  # already on the roster; approving skips it too
+        gathering, gathering_name = gatherings[gathering_id]
+        added.append(
+            AssignmentFact(
+                id=uuid.uuid4(),
+                person_id=person_id,
+                person_name=people[person_id],
+                ministry_id=ministry_id,
+                ministry_name=ministry.name,
+                role_id=role_id,
+                role_name=roles[role_id],
+                gathering_id=gathering_id,
+                gathering_name=gathering_name,
+                start=gathering.start_at,
+                end=gathering.end_at,
+                local_start=gathering.start_at.astimezone(tz),
+                local_end=gathering.end_at.astimezone(tz),
+            )
+        )
+    known = {i.key: i.text for i in _issues(session, church, tz, before, start, end)}
+    return [
+        issue
+        for issue in _issues(session, church, tz, [*before, *added], start, end)
+        if known.get(issue.key) != issue.text
+    ]
+
+
+def _issues(
+    session: Session,
+    church: Church,
+    tz: ZoneInfo,
+    facts: list[AssignmentFact],
+    start: date,
+    end: date,
+) -> list[Issue]:
+    """Every check's issues about `[start, end)`, from these assignment facts."""
+    rules = [
+        LoadRuleFact(r.period, r.normal_max, r.warning_above)
+        for r in session.scalars(select(LoadRule).where(LoadRule.church_id == church.id))
+    ]
+    preferences: dict[object, PreferenceFact] = {
+        p.person_id: PreferenceFact(p.preferred_frequency, p.preferred_frequency_period)
+        for p in session.scalars(select(Preference).where(Preference.church_id == church.id))
+        if p.preferred_frequency is not None and p.preferred_frequency_period is not None
+    }
+    issues = [
+        *overlaps(facts),
+        *load(facts, rules, preferences, church.name),
+        *below_minimum(_role_needs(session, church.id, tz, facts, start, end)),
+    ]
+    return [i for i in issues if _in_window(i, start, end)]
 
 
 def _in_window(issue: Issue, start: date, end: date) -> bool:

@@ -6,13 +6,18 @@ creates people or memberships (rule 6): everyone assigned must already be on
 the ministry's team.
 """
 
+import uuid
+from datetime import timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
     Assignment,
+    Church,
+    Gathering,
     Membership,
     Person,
     Proposal,
@@ -28,6 +33,7 @@ from app.domain.enums import (
 )
 from app.domain.proposals import LeaderRosterPayload
 from app.domain.schemas import ProposalOut
+from app.services.checks_runner import run_checks
 from app.services.errors import ApprovalError
 from app.services.names import Names, ProposalText
 
@@ -120,11 +126,27 @@ def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, A
             learned += 1
 
     _set_intake_status(session, proposal, IntakeStatus.APPROVED)
+    _recheck(session, cid, {gathering_id for gathering_id, _, _ in wanted})
     return {
         "assignments_created": created,
         "duplicates_skipped": len(wanted) - created,
         "nicknames_learned": learned,
     }
+
+
+def _recheck(session: Session, church_id: uuid.UUID, gathering_ids: set[uuid.UUID]) -> None:
+    """Re-run the checks over the days this roster touches, so new warnings show at once."""
+    starts = session.scalars(
+        select(Gathering.start_at).where(
+            Gathering.church_id == church_id, Gathering.id.in_(gathering_ids)
+        )
+    ).all()
+    if not starts:
+        return
+    tz = ZoneInfo(session.get_one(Church, church_id).timezone)
+    days = [s.astimezone(tz).date() for s in starts]
+    session.flush()
+    run_checks(session, church_id, min(days), max(days) + timedelta(days=1))
 
 
 def on_reject(session: Session, proposal: Proposal) -> None:
