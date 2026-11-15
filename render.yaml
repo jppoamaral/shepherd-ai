@@ -1,0 +1,36 @@
+# Render Blueprint for the MVP demo (ADR 0002): the API and a free Postgres.
+# The frontend is on Vercel (frontend/vercel.json), which rewrites /api/* to this service.
+# Synthetic data only: DEMO_MODE lets anyone reset the database.
+
+databases:
+  - name: shepherd-db
+    plan: free # expires 30 days after creation; recreate it before a presentation
+    databaseName: shepherd
+    user: shepherd
+
+services:
+  - type: web
+    name: shepherd-api
+    runtime: docker
+    plan: free # sleeps after 15 minutes idle; the first request then takes about a minute
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shepherd-db
+          property: connectionString
+      # Free Render has no background workers: the nightly job runs inside the API.
+      - key: RUN_SCHEDULER
+        value: "true"
+      - key: DEMO_MODE
+        value: "true"
+      # Optional. Without them, typed Ask Shepherd questions fall back to the suggestions.
+      - key: AZURE_OPENAI_ENDPOINT
+        sync: false
+      - key: AZURE_OPENAI_API_KEY
+        sync: false
+      - key: AZURE_OPENAI_DEPLOYMENT
+        sync: false

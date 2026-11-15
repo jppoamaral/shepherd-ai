@@ -204,7 +204,18 @@ The steps as planned:
 - An edited roster with a conflict warns before approval.
 - Sarah's Home shows a real absence card.
 
-## Phase 3: Deploy (Vercel + Render)
+## Phase 3: Deploy (Vercel + Render) — code done 2026-11-14; dashboards pending
+
+The code is on the `mvp-cleanup` branch and was checked locally (the image run with `start.sh`, `postgres://`, `$PORT`, `RUN_SCHEDULER` and `DEMO_MODE`; the demo build; a reset end to end). What is left is done by the user in the Render and Vercel dashboards, following the README section "Online demo (Vercel + Render)"; then check the "Done when" list against the live URLs.
+
+How it differs from the steps written below:
+
+- **Demo reset and the audit log:** `audit_log` has a trigger that rejects TRUNCATE. The user chose to lift it for the reset only: `services/demo.py` switches the trigger off and on inside the reset's transaction. This is the one written exception to rule 9 (ADR 0002, `CLAUDE.md`).
+- **Scheduler:** `app/scheduler.py` builds it; the start-up run is a one-off job, so start-up and `/health` don't wait for it. `worker.run_nightly(session)` is the job without the commit, shared with the reset.
+- **Demo build:** a `demo` configuration in `angular.json`, used as `ng build --configuration production,demo` (`npm run build:demo`). `npm run build` still targets `localhost:8000`.
+- **`CORS_ORIGINS` is not in `render.yaml`:** the browser only talks to Vercel, which forwards `/api/*`, so no cross-origin call happens.
+
+The steps as planned:
 
 ### Backend on Render
 
