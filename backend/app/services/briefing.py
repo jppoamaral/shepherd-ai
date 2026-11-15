@@ -159,7 +159,12 @@ def _headline(first: str, warnings: int, notes: int) -> str:
     return f"{first}, this week you have " + " and ".join(parts) + "."
 
 
-KIND_ORDER = {FindingType.OVERLAP: 0, FindingType.LOAD: 1, FindingType.BELOW_MINIMUM: 2}
+KIND_ORDER = {
+    FindingType.OVERLAP: 0,
+    FindingType.BLOCKOUT: 1,
+    FindingType.LOAD: 2,
+    FindingType.BELOW_MINIMUM: 3,
+}
 
 
 def _order(f: Finding) -> tuple[int, int, str]:

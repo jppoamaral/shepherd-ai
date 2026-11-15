@@ -4,12 +4,15 @@
   ministries, on any day of the week.
 * Load: serving count per week or month against the church's load rules and
   the person's own preferred frequency. Warnings, never blocks (rule 8).
+* Blockout: someone on a roster on a date they said they can't serve. The
+  reason is never known here, only the dates.
 * Below minimum: a role short of its minimum at a gathering whose roster has
   been started (an untouched gathering isn't a gap yet, just not scheduled).
 """
 
+import uuid
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta
 
 from app.domain.checks import AssignmentFact, Issue, LoadRuleFact, PreferenceFact, RoleNeed
@@ -84,6 +87,36 @@ def _side(a: AssignmentFact) -> dict[str, str]:
 
 def _slot(a: AssignmentFact) -> str:
     return f"{a.gathering_name} {format_time(a.local_start.time())} to {format_time(a.local_end.time())}"
+
+
+def blockouts(
+    assignments: Sequence[AssignmentFact],
+    blocked: Mapping[uuid.UUID, Sequence[tuple[date, date]]],
+) -> list[Issue]:
+    """One issue per assignment that falls on a date (church-local, inclusive) its person is away."""
+    issues: list[Issue] = []
+    for a in sorted(assignments, key=lambda a: (a.start, a.person_name, a.ministry_name)):
+        day = a.local_start.date()
+        if not any(start <= day <= end for start, end in blocked.get(a.person_id, ())):
+            continue
+        issues.append(
+            Issue(
+                type=FindingType.BLOCKOUT,
+                key=f"blockout:{a.id}",
+                severity=WARNING,
+                text=(
+                    f"{a.person_name} can't serve on {a.local_start:%a %-d %b} but is on the "
+                    f"{a.ministry_name} roster ({a.role_name}) at {a.gathering_name} "
+                    f"{format_time(a.local_start.time())}."
+                ),
+                gathering_id=a.gathering_id,
+                person_ids=(a.person_id,),
+                ministry_ids=(a.ministry_id,),
+                on=day.isoformat(),
+                details={"assignment_id": str(a.id), "side": _side(a)},
+            )
+        )
+    return issues
 
 
 def load(

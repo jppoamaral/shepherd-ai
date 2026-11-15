@@ -6,8 +6,8 @@ from datetime import date
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Assignment, Finding, Ministry, Person
-from app.domain.enums import FindingStatus, FindingType
+from app.db.models import Assignment, Blockout, Finding, Gathering, Ministry, MinistryLeader, Person
+from app.domain.enums import FindingStatus, FindingType, StatedBy
 from app.services.checks_runner import run_checks
 
 WEEK = (date(2026, 10, 11), date(2026, 10, 18))
@@ -107,3 +107,45 @@ def test_checks_are_church_scoped(
 ) -> None:
     run_checks(session, grace_id, *WEEK)
     assert run_checks(session, riverside_id, *WEEK) == []
+
+
+def test_blockout_on_a_rostered_day_reaches_the_scheduler_and_resolves(
+    session: Session, grace_id: uuid.UUID
+) -> None:
+    assert not of_type(run_checks(session, grace_id, *WEEK), FindingType.BLOCKOUT)
+    megan = person_id(session, grace_id, "Megan Lee")
+    assignment, gathering = session.execute(
+        select(Assignment, Gathering)
+        .join(Gathering, Gathering.id == Assignment.gathering_id)
+        .where(Assignment.church_id == grace_id, Assignment.person_id == megan)
+        .order_by(Gathering.start_at)
+    ).first()
+    assert WEEK[0] <= gathering.start_at.date() < WEEK[1]
+    away = Blockout(
+        church_id=grace_id,
+        person_id=megan,
+        start_date=date(2026, 10, 11),
+        end_date=date(2026, 10, 11),
+        stated_by=StatedBy.VOLUNTEER,
+    )
+    session.add(away)
+    session.flush()
+
+    (finding,) = of_type(run_checks(session, grace_id, *WEEK), FindingType.BLOCKOUT)
+    assert finding.person_ids == [megan] and finding.gathering_id == gathering.id
+    assert finding.details["text"].startswith("Megan Lee can't serve on Sun 11 Oct")
+    schedulers = set(
+        session.scalars(
+            select(MinistryLeader.person_id).where(
+                MinistryLeader.church_id == grace_id,
+                MinistryLeader.ministry_id == assignment.ministry_id,
+                MinistryLeader.can_schedule.is_(True),
+            )
+        )
+    )
+    assert set(finding.recipient_person_ids) == schedulers and schedulers
+
+    session.delete(away)
+    session.flush()
+    assert not of_type(run_checks(session, grace_id, *WEEK), FindingType.BLOCKOUT)
+    assert finding.status is FindingStatus.RESOLVED

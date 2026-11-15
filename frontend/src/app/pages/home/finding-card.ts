@@ -6,7 +6,7 @@ import { Icon } from '../../ui/icon';
 
 const EXPERIENCE: Record<string, string> = { new: 'New', experienced: 'Experienced', veteran: 'Veteran' };
 
-/** One thing the checks found this week: a shared volunteer, someone serving a lot, an open slot. */
+/** One thing the checks found this week: a shared volunteer, someone rostered while away, someone serving a lot, an open slot. */
 @Component({
   selector: 'sh-finding-card',
   imports: [RouterLink, Icon],
@@ -28,6 +28,19 @@ const EXPERIENCE: Record<string, string> = { new: 'New', experienced: 'Experienc
               <a class="sh-btn sh-btn--secondary" [routerLink]="['/huddle', item().finding_id]">Find a time to talk</a>
             </div>
           }
+        </article>
+      }
+      @case ('blockout') {
+        <article class="sh-card">
+          <div class="sh-brief-head">
+            <span class="sh-tag sh-tag--attn"><sh-icon name="calendar" />Away that day</span>
+            <span class="sh-cap">Needs you</span>
+          </div>
+          <h3>{{ item().text }}</h3>
+          <p>Shepherd won't move anyone. You can change the roster or check with them.</p>
+          <div class="sh-actions">
+            <a class="sh-btn sh-btn--secondary" routerLink="/rosters">See the roster</a>
+          </div>
         </article>
       }
       @case ('load') {

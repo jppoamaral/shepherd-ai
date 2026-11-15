@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     Assignment,
+    Blockout,
     Church,
     Finding,
     Gathering,
@@ -32,10 +33,15 @@ from app.db.models import (
 from app.domain.checks import AssignmentFact, Issue, LoadRuleFact, PreferenceFact, RoleNeed
 from app.domain.enums import AssignmentStatus, FindingStatus, FindingType, Recipient
 from app.domain.profile import default_routing
-from app.services.checks import below_minimum, load, overlaps
+from app.services.checks import below_minimum, blockouts, load, overlaps
 from app.services.errors import NotFound
 
-CHECKED_TYPES = (FindingType.OVERLAP, FindingType.LOAD, FindingType.BELOW_MINIMUM)
+CHECKED_TYPES = (
+    FindingType.OVERLAP,
+    FindingType.BLOCKOUT,
+    FindingType.LOAD,
+    FindingType.BELOW_MINIMUM,
+)
 # Load buckets (weeks, months) can start before or end after the window.
 CONTEXT = timedelta(days=31)
 
@@ -186,8 +192,12 @@ def _issues(
         for p in session.scalars(select(Preference).where(Preference.church_id == church.id))
         if p.preferred_frequency is not None and p.preferred_frequency_period is not None
     }
+    blocked: dict[uuid.UUID, list[tuple[date, date]]] = defaultdict(list)
+    for b in session.scalars(select(Blockout).where(Blockout.church_id == church.id)):
+        blocked[b.person_id].append((b.start_date, b.end_date))
     issues = [
         *overlaps(facts),
+        *blockouts(facts, blocked),
         *load(facts, rules, preferences, church.name),
         *below_minimum(_role_needs(session, church.id, tz, facts, start, end)),
     ]
