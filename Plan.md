@@ -272,7 +272,7 @@ The steps as planned:
   "buildCommand": "npm run build:demo",
   "outputDirectory": "dist/<app-name>/browser",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://shepherd-api.onrender.com/:path*" },
+    { "source": "/api/:path*", "destination": "https://shepherd-api-9wtg.onrender.com/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -303,7 +303,7 @@ The steps as planned:
 - State the free-tier limits: the API sleeps after 15 minutes, and the database expires after 30 days.
 
 **Done when:**
-- `https://shepherd-api.onrender.com/health` answers.
+- `https://shepherd-api-9wtg.onrender.com/health` answers.
 - The Vercel URL loads the picker.
 - Reset works.
 - Demo 1 runs online.
