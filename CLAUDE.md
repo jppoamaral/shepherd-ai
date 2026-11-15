@@ -7,16 +7,19 @@ Clarified for volunteer chat: anything Shepherd *starts* (reminders, nudges, a l
 
 **Source of truth: `docs/PROJECT_BRIEF.md`.** Read it before starting any milestone. If a request conflicts with it, ask. Architecture decisions live in `docs/adr/`.
 
+**Current work: `Plan.md`** (the MVP plan: cleanup, last features, deploy on Vercel + Render). Read it first. Where it narrows the brief for the MVP, the plan wins; the reasons are in `docs/adr/0002-mvp-deploy-and-scope.md`.
+
 ## Stack (decided; do not change without asking)
 
 - **Backend:** Python 3.12, FastAPI, Pydantic v2
 - **Database:** PostgreSQL 16 (Docker), SQLAlchemy 2.x typed ORM, Alembic migrations
 - **Agents:** one worker process with APScheduler (nightly and per-cycle jobs); on-request agents are triggered by the API
-- **Roster solver:** Google OR-Tools CP-SAT
+- **Roster solver:** Google OR-Tools CP-SAT is the long-term choice. The MVP keeps the greedy drafter in `services/drafting.py` with one suggestion (ADR 0002); `app/solver/` stays empty until the later phases.
 - **Language model:** Azure OpenAI via the official `openai` SDK, behind a small `LLMClient` interface, with `FakeLLM` for tests. Structured outputs (JSON schema / Pydantic) for every model call.
 - **Frontend:** Angular 22 in `/frontend` (standalone components, signals), styled only with the Claude Design tokens and `sh-*` classes in `frontend/design-system/` (read its `USAGE.md` and `screens/README.md` first). API types are generated from the backend's OpenAPI (`npm run api:types`). Runs on port 4300.
 - **Tooling:** uv (deps), ruff (lint + format), mypy (strict on `app/domain` and `app/services`), pytest
-- **Local first:** docker-compose for Postgres, API and worker; settings in `.env` (see `.env.example`). Azure deployment comes later; add no cloud resources yet.
+- **Local first:** docker-compose for Postgres, API and worker; settings in `.env` (see `.env.example`). Azure deployment comes later; add no Azure resources yet.
+- **MVP deploy (ADR 0002):** frontend on Vercel (rewrites `/api/*` to the backend), API and free Postgres on Render via `render.yaml`. The scheduler runs inside the API there (`RUN_SCHEDULER=true`); `DEMO_MODE=true` enables the demo reset. Synthetic data only.
 - **Channels:** `ChannelAdapter` interface + `CopyPasteChannel` (renders approved messages as a list) + `SimulatorChannel` (the demo volunteer chat, standing in for Telegram). Each church picks one (`churches.channel`; `DEFAULT_CHANNEL` / `CHANNEL_BY_CHURCH` in `.env`); the seeds put Grace Community on the simulator. Inbound messages go through `services/inbound.py`, which Telegram will reuse. Telegram comes later.
 
 ## Architecture rules (non-negotiable; enforce in code and tests)
@@ -84,6 +87,8 @@ Local setup on macOS: `brew install uv colima docker docker-compose`, then `coli
 Set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` (a model with structured outputs) and optionally `AZURE_OPENAI_API_VERSION`. Put them in `backend/.env` for local runs and the repo-root `.env` for docker compose; both are gitignored. Without them, chat endpoints return 503 and evals skip. Tests never call the real model: they inject `FakeLLM` (`app/llm/fake.py`). Prompts live in `app/llm/prompts/`. Evals are run several times before a prompt change is trusted, since model output varies; when an eval flakes, fix the cause (a missing fact such as today's date, an ambiguous field) rather than loosening the check.
 
 ## Planned work (beyond the brief's milestones)
+
+The order of work is in `Plan.md`. Both items below are later phases, after the MVP.
 
 - **Onboarding UX pass** (after M3; raised by the user after the M2 demo).
   Root causes from the user's real session (the roles topic, a Youth/Kids/Media/Worship church):

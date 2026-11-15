@@ -143,9 +143,9 @@ chat** under the phone is there for a rerun without a reset.
 
 ### What is sample content
 
-On Home, the absence check-in and the "people aren't connected yet" notice are **fixed
-sample content**; those come in later milestones. Reminders are real: drafted by the worker,
-sent only on approval.
+On Home, the absence check-in (Kids only) is **fixed sample content**; Phase 2 of `Plan.md`
+replaces it with a real check. Reminders are real: drafted by the worker, sent only on
+approval.
 Ask Shepherd's drafts are real text from the roster, sent only when the leader taps Send.
 "Draft a reminder" sends real reminders (1/2 answers work); Home's reminder card then leaves
 out anyone already reminded.
