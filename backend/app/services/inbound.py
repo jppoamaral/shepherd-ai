@@ -31,7 +31,6 @@ from app.db.models import (
     Conversation,
     Finding,
     Gathering,
-    LeaderNotice,
     Membership,
     Message,
     Ministry,
@@ -39,7 +38,6 @@ from app.db.models import (
     Person,
     Preference,
     Role,
-    RoleMinimum,
     RoleSkill,
 )
 from app.db.repositories.notices import NoticeWriter
@@ -60,13 +58,13 @@ from app.domain.proposals import (
     ReplyPlacePayload,
 )
 from app.domain.replies import ParsedReply, ReplyIntent
-from app.domain.schemas import PutIn
 from app.llm.client import LLMClient
 from app.llm.prompts.replies import PARSE
 from app.services.approval import ApprovalService
 from app.services.briefing import church_today
 from app.services.reminders import BUTTONS as REMINDER_BUTTONS
 from app.services.serve_ask import BUTTONS as ASK_BUTTONS
+from app.services.text import and_list, short_day
 
 YES = re.compile(
     r"^\s*(1\b|y\b|yes\b|yep\b|yeah\b|sure\b|ok\b|okay\b|count me in|i'?ll be there)", re.I
@@ -306,7 +304,7 @@ def _route(ctx: Inbound, text: str, llm: LLMClient | None) -> list[BotReply]:
 def _greet(ctx: Inbound) -> list[BotReply]:
     reminder = _open_reminder(ctx)
     if reminder:
-        when = f"{reminder.start:%a} {_short(reminder.start.date())}"
+        when = f"{reminder.start:%a} {short_day(reminder.start.date())}"
         if reminder.ask is not None:
             first = _say(
                 ctx,
@@ -365,7 +363,7 @@ def _schedule(ctx: Inbound) -> list[BotReply]:
     pending: dict[str, str] = {}  # day -> time of the first held place that day
     for aid, status, at, ministry, role in rows:
         local = at.astimezone(ctx.tz)
-        day = f"{local:%a} {_short(local.date())}"
+        day = f"{local:%a} {short_day(local.date())}"
         hour = f"{local:%I:%M %p}".lstrip("0")
         if str(aid) in held:
             pending.setdefault(day, hour)
@@ -389,7 +387,7 @@ def _schedule(ctx: Inbound) -> list[BotReply]:
             f"{day} at {hour}" if any(x.startswith(f"{day},") for x in lines) else day
             for day, hour in pending.items()
         ]
-        body += ("\n" if body else "") + f"Your leaders will confirm {_and(days)} with you."
+        body += ("\n" if body else "") + f"Your leaders will confirm {and_list(days)} with you."
         if not lines:
             body += f" Nothing else is on your rosters for the next {SCHEDULE_WEEKS} weeks."
     return [_say(ctx, body)]
@@ -511,7 +509,7 @@ def _confirm(ctx: Inbound, r: Reminder) -> list[BotReply]:
 
 def _decline(ctx: Inbound, r: Reminder, note: str | None) -> list[BotReply]:
     _await(ctx, None)
-    when = _short(r.start.date())
+    when = short_day(r.start.date())
     if r.ask is not None:
         _approve(
             ctx,
@@ -547,7 +545,7 @@ def _decline(ctx: Inbound, r: Reminder, note: str | None) -> list[BotReply]:
 
 def _maybe(ctx: Inbound, r: Reminder) -> list[BotReply]:
     _await(ctx, "maybe")
-    when = _short(r.start.date())
+    when = short_day(r.start.date())
     return [
         _say(
             ctx,
@@ -560,7 +558,7 @@ def _maybe(ctx: Inbound, r: Reminder) -> list[BotReply]:
 
 def _cant_commit(ctx: Inbound, r: Reminder) -> list[BotReply]:
     _await(ctx, None)
-    when = _short(r.start.date())
+    when = short_day(r.start.date())
     text = f"{ctx.person.name} can't commit to {r.start:%a} {when} yet ({r.ministry}, {r.role})."
     if r.ask is not None:
         # An ask she can't commit to is answered for now: her leader can ask someone else.
@@ -598,7 +596,7 @@ def _holder(ctx: Inbound, assignment_id: uuid.UUID | None) -> str | None:
 
 
 def _when(r: Reminder) -> str:
-    return f"{r.start:%a} {_short(r.start.date())} at {r.start.hour % 12 or 12}:{r.start.minute:02d} {r.start:%p}"
+    return f"{r.start:%a} {short_day(r.start.date())} at {r.start.hour % 12 or 12}:{r.start.minute:02d} {r.start:%p}"
 
 
 # --- away dates, stop/start, what I know ---------------------------------------
@@ -609,7 +607,7 @@ def _confirm_away(ctx: Inbound, dates: list[date]) -> list[BotReply]:
     return [
         _say(
             ctx,
-            f"Got it: you're away {_and([_short(d) for d in dates])}. Is that right?",
+            f"Got it: you're away {and_list([short_day(d) for d in dates])}. Is that right?",
             YES_BUTTONS,
         )
     ]
@@ -621,7 +619,7 @@ def _save_away(ctx: Inbound, isos: list[str]) -> list[BotReply]:
     if not dates:
         return [_say(ctx, "Which dates are you away?")]
     _approve(ctx, ProposalType.REPLY_AWAY, ReplyAwayPayload(person_id=ctx.person.id, dates=dates))
-    return [_say(ctx, f"Saved. You're away {_and([_short(d) for d in dates])}. Thank you!")]
+    return [_say(ctx, f"Saved. You're away {and_list([short_day(d) for d in dates])}. Thank you!")]
 
 
 def _stop(ctx: Inbound) -> list[BotReply]:
@@ -692,7 +690,7 @@ def _what_i_know(ctx: Inbound) -> list[BotReply]:
         .order_by(Blockout.start_date)
     ).all()
     if away:
-        lines.append(f"Away: {', '.join(_short(d) for d in away)}")
+        lines.append(f"Away: {', '.join(short_day(d) for d in away)}")
     if ctx.person.stopped:
         lines.append("Reminders: off")
     _await(ctx, "what_i_know")
@@ -827,120 +825,3 @@ def _iso(value: str) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
-
-
-def _short(d: date) -> str:
-    return f"{d:%b} {d.day}"
-
-
-def _and(items: list[str]) -> str:
-    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
-
-
-def notice_settled(session: Session, notice: LeaderNotice) -> tuple[bool, str | None]:
-    """Whether the place a notice is about has been dealt with since, and how.
-
-    A decline is settled once the role is back at its minimum for that gathering; "can't
-    commit" once the volunteer answers the reminder after all; "can serve" once the
-    leader has put them in.
-    """
-    if notice.kind == "can_serve":
-        return (
-            (True, f"{notice.text.split(' ')[0]} is on the roster.")
-            if _holds_place(session, notice)
-            else (False, None)
-        )
-    if notice.assignment_id is None:
-        return False, None
-    a = session.get(Assignment, notice.assignment_id)
-    if a is None:
-        return False, None
-    first = notice.text.split(" ")[0]
-    if notice.kind == "cant_commit":
-        if a.status is AssignmentStatus.CONFIRMED:
-            return True, f"{first} has since said yes."
-        if a.status is AssignmentStatus.DECLINED:
-            return True, f"{first} has since replied: can't make it."
-        return False, None
-    if notice.kind != "declined":
-        return False, None
-    gathering = session.get_one(Gathering, a.gathering_id)
-    minimum = (
-        session.scalar(
-            select(RoleMinimum.minimum).where(
-                RoleMinimum.church_id == a.church_id,
-                RoleMinimum.role_id == a.role_id,
-                RoleMinimum.gathering_type_id == gathering.gathering_type_id,
-            )
-        )
-        or 0
-    )
-    serving = session.execute(
-        select(Person.name, Assignment.created_at)
-        .join(Person, Person.id == Assignment.person_id)
-        .where(
-            Assignment.church_id == a.church_id,
-            Assignment.gathering_id == a.gathering_id,
-            Assignment.role_id == a.role_id,
-            Assignment.status != AssignmentStatus.DECLINED,
-        )
-    ).all()
-    if len(serving) < minimum:
-        return False, None
-    newcomers = [name for name, created in serving if created >= notice.created_at]
-    return True, (
-        f"Covered: {_and(newcomers)} {'is' if len(newcomers) == 1 else 'are'} in."
-        if newcomers
-        else "Covered."
-    )
-
-
-def _holds_place(session: Session, notice: LeaderNotice) -> bool:
-    return (
-        notice.gathering_id is not None
-        and session.scalar(
-            select(Assignment.id).where(
-                Assignment.church_id == notice.church_id,
-                Assignment.person_id == notice.about_person_id,
-                Assignment.gathering_id == notice.gathering_id,
-                Assignment.role_id == notice.role_id,
-                Assignment.status != AssignmentStatus.DECLINED,
-            )
-        )
-        is not None
-    )
-
-
-def notice_put_in(session: Session, notice: LeaderNotice, name: str) -> PutIn | None:
-    """For "can serve": the place, so the leader can put them in with one tap. If they were
-    asked to take someone's place and that person still holds it, it's a swap."""
-    if notice.kind != "can_serve" or notice.gathering_id is None or notice.role_id is None:
-        return None
-    role = session.get_one(Role, notice.role_id)
-    swap = swap_from(session, notice)
-    return PutIn(
-        ministry_id=notice.ministry_id,
-        gathering_id=notice.gathering_id,
-        role_id=notice.role_id,
-        role=role.name,
-        person_id=notice.about_person_id,
-        name=name,
-        replaces=swap[1] if swap else None,
-    )
-
-
-def swap_from(session: Session, notice: LeaderNotice) -> tuple[Assignment, str] | None:
-    """The place a "can serve" notice would take over, and its holder, if it still stands."""
-    if notice.assignment_id is None:
-        return None
-    row = session.execute(
-        select(Assignment, Person.name)
-        .join(Person, Person.id == Assignment.person_id)
-        .where(
-            Assignment.church_id == notice.church_id,
-            Assignment.id == notice.assignment_id,
-            Assignment.status != AssignmentStatus.DECLINED,
-            Assignment.person_id != notice.about_person_id,
-        )
-    ).first()
-    return (row[0], row[1]) if row else None

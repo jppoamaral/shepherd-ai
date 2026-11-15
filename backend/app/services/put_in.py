@@ -17,7 +17,7 @@ from app.domain.proposals import ServeAskSwapPayload
 from app.domain.schemas import PutInOut, SuggestedAssignment
 from app.services.approval import ApprovalService
 from app.services.errors import ApprovalError, NotFound
-from app.services.inbound import notice_put_in, notice_settled, swap_from
+from app.services.notices import notice_put_in, notice_settled, swap_from
 from app.services.suggestion import approve_suggestion
 
 

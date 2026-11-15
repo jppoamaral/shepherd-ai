@@ -38,7 +38,8 @@ from app.domain.schemas import (
 )
 from app.services.briefing import church_today
 from app.services.errors import ApprovalError, NotAllowed, NotFound
-from app.services.inbound import UnknownPerson, handle_inbound, notice_put_in, notice_settled
+from app.services.inbound import UnknownPerson, handle_inbound
+from app.services.notices import notice_put_in, notice_settled
 from app.services.proposal_text import describe
 from app.services.put_in import put_in
 from app.services.reminders import draft_reminders
