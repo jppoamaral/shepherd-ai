@@ -33,6 +33,11 @@ export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiUrl;
 
+  /** Demo build only: reload the synthetic data (the API answers 404 unless DEMO_MODE is on). */
+  resetDemo(): Observable<unknown> {
+    return this.http.post(`${this.base}/demo/reset`, {});
+  }
+
   churches(): Observable<Church[]> {
     return this.http.get<Church[]>(`${this.base}/churches`);
   }

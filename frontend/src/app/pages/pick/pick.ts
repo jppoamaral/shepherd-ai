@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../api/api.service';
 import type { Church, Leader } from '../../api/types';
 import { Session } from '../../core/session';
+import { environment } from '../../../environments/environment';
 import { initials } from '../../core/format';
 import { Icon } from '../../ui/icon';
 
@@ -72,6 +73,15 @@ import { Icon } from '../../ui/icon';
             <span class="sh-cap">Open a volunteer's chat (demo)</span>
           </span>
         </a>
+        @if (demo) {
+          <hr class="divider" />
+          <button type="button" class="sh-btn sh-btn--quiet" [disabled]="resetting()" (click)="reset()">
+            {{ resetting() ? 'Resetting…' : 'Reset demo data' }}
+          </button>
+          <p class="sh-cap" role="status">
+            {{ resetDone() ? 'Demo data is fresh: the demo week starts this coming Sunday.' : 'Puts the fictional data back as it started.' }}
+          </p>
+        }
       </div>
     </main>
   `,
@@ -86,15 +96,46 @@ export class PickPage {
   protected readonly leaders = signal<Leader[]>([]);
   protected readonly error = signal('');
   protected readonly initials = initials;
+  protected readonly demo = environment.demo;
+  protected readonly resetting = signal(false);
+  protected readonly resetDone = signal(false);
 
   constructor() {
+    this.loadChurches();
+  }
+
+  /** Demo build: put the synthetic data back as the seeds make it, then load it again. */
+  protected reset(): void {
+    this.resetting.set(true);
+    this.resetDone.set(false);
+    this.error.set('');
+    this.api.resetDemo().subscribe({
+      next: () => {
+        this.resetting.set(false);
+        this.resetDone.set(true);
+        this.session.signOut();
+        this.loadChurches();
+      },
+      error: () => {
+        this.resetting.set(false);
+        this.error.set("The demo data couldn't be reset. Please try again.");
+      },
+    });
+  }
+
+  private loadChurches(): void {
     this.api.churches().subscribe({
       next: (churches) => {
         this.churches.set(churches);
         const grace = churches.find((c) => c.name === 'Grace Community') ?? churches[0];
         if (grace) this.pickChurch(grace.id);
       },
-      error: () => this.error.set("Shepherd's server isn't reachable. Is it running on port 8000?"),
+      error: () =>
+        this.error.set(
+          this.demo
+            ? "Shepherd's server isn't answering yet. Please try again in a minute."
+            : "Shepherd's server isn't reachable. Is it running on port 8000?",
+        ),
     });
   }
 
