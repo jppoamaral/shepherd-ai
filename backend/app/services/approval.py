@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Person, Proposal
 from app.db.repositories.audit import AuditLogRepository
 from app.domain.enums import ProposalStatus, ProposalType
+from app.domain.schemas import ProposalOut
 from app.services import (
     huddle_apply,
     memory_apply,
@@ -28,6 +29,7 @@ from app.services import (
     serve_ask_apply,
 )
 from app.services.errors import ApprovalError, NotAllowed, NotFound
+from app.services.names import Names, ProposalText
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,8 @@ class ProposalHandler:
     apply: Callable[[Session, Proposal, Person], dict[str, Any]]
     # Optional cleanup after a rejection (nothing in the record changes).
     on_reject: Callable[[Session, Proposal], None] | None = None
+    # How the proposal reads in the approval queue; types decided at once have none.
+    describe: Callable[[Names, ProposalOut], ProposalText] | None = None
 
 
 HANDLERS: Mapping[str, ProposalHandler] = {
@@ -45,14 +49,18 @@ HANDLERS: Mapping[str, ProposalHandler] = {
         may_decide=profile_apply.may_decide,
         apply=profile_apply.apply,
         on_reject=profile_apply.on_reject,
+        describe=profile_apply.describe,
     ),
     ProposalType.LEADER_ROSTER: ProposalHandler(
         may_decide=roster_apply.may_decide,
         apply=roster_apply.apply,
         on_reject=roster_apply.on_reject,
+        describe=roster_apply.describe,
     ),
     ProposalType.MEMORY: ProposalHandler(
-        may_decide=memory_apply.may_decide, apply=memory_apply.apply
+        may_decide=memory_apply.may_decide,
+        apply=memory_apply.apply,
+        describe=memory_apply.describe,
     ),
     ProposalType.HUDDLE_ACCEPT_REPLACEMENT: ProposalHandler(
         may_decide=huddle_apply.may_decide, apply=huddle_apply.apply_accept
@@ -61,7 +69,9 @@ HANDLERS: Mapping[str, ProposalHandler] = {
         may_decide=huddle_apply.may_decide, apply=huddle_apply.apply_undo
     ),
     ProposalType.REMINDERS: ProposalHandler(
-        may_decide=reminders_apply.may_decide, apply=reminders_apply.apply
+        may_decide=reminders_apply.may_decide,
+        apply=reminders_apply.apply,
+        describe=reminders_apply.describe,
     ),
     ProposalType.SERVE_ASK: ProposalHandler(
         may_decide=serve_ask_apply.may_decide, apply=serve_ask_apply.apply

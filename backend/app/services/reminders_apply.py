@@ -14,7 +14,10 @@ from app.channels.base import OutgoingMessage
 from app.channels.factory import channel_for, channel_name
 from app.db.models import Assignment, Church, MinistryLeader, Person, Proposal
 from app.db.repositories.messages import MessageWriter
+from app.domain.enums import ProposalStatus
 from app.domain.proposals import RemindersPayload
+from app.domain.schemas import ProposalOut
+from app.services.names import Names, ProposalText
 from app.services.reminders import already_reminded, still_on_roster
 
 
@@ -37,6 +40,37 @@ def approves(
             )
         )
         is not None
+    )
+
+
+def describe(names: Names, proposal: ProposalOut) -> ProposalText:
+    """What will be sent, and who is left out because the roster moved on since the draft."""
+    payload = RemindersPayload.model_validate(proposal.payload)
+    session, cid = names.session, names.church_id
+    pending = proposal.status is ProposalStatus.PENDING
+    current, left, already = [], [], []
+    for m in payload.messages:
+        if not still_on_roster(session, cid, m.assignment_id, m.person_id):
+            left.append(m)
+        elif pending and already_reminded(session, cid, m.assignment_id):
+            already.append(m)
+        else:
+            current.append(m)
+    n = len(current)
+    blocks = [f"To {names.person(m.person_id)}: {m.body}" for m in current]
+    if left:
+        who = ", ".join(names.person(m.person_id) for m in left)
+        blocks.append(
+            f"Not sending to {who}: no longer on this roster since the reminders were drafted."
+        )
+    if already:
+        who = ", ".join(names.person(m.person_id) for m in already)
+        blocks.append(f"Not sending to {who}: already reminded from Ask Shepherd.")
+    return ProposalText(
+        title=f"{n} reminder{'s' if n != 1 else ''} ready for "
+        f"{names.gathering(payload.gathering_id)}",
+        summary="\n\n".join(blocks),
+        count=n,
     )
 
 

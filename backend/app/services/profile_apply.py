@@ -28,13 +28,22 @@ from app.db.models import (
 )
 from app.domain.enums import OnboardingStatus, ProfileStatus
 from app.domain.profile import ChurchProfileDraft
+from app.domain.schemas import ProposalOut
 from app.services.errors import ApprovalError
 from app.services.gatherings import ensure_gatherings
-from app.services.profile import proposal_blockers
+from app.services.names import Names, ProposalText
+from app.services.profile import proposal_blockers, render_summary
 
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
     return person.is_admin and person.church_id == proposal.church_id
+
+
+def describe(names: Names, proposal: ProposalOut) -> ProposalText:
+    return ProposalText(
+        title="Church profile",
+        summary=render_summary(ChurchProfileDraft.model_validate(proposal.payload)),
+    )
 
 
 def apply(session: Session, proposal: Proposal, approver: Person) -> dict[str, Any]:

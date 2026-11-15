@@ -27,7 +27,9 @@ from app.domain.enums import (
     MembershipStatus,
 )
 from app.domain.proposals import LeaderRosterPayload
+from app.domain.schemas import ProposalOut
 from app.services.errors import ApprovalError
+from app.services.names import Names, ProposalText
 
 
 def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
@@ -43,6 +45,23 @@ def may_decide(session: Session, proposal: Proposal, person: Person) -> bool:
             )
         )
         is not None
+    )
+
+
+def describe(names: Names, proposal: ProposalOut) -> ProposalText:
+    payload = LeaderRosterPayload.model_validate(proposal.payload)
+    lines = [
+        f"• {names.gathering(a.gathering_id)} · {names.role(a.role_id)} · {names.person(a.person_id)}"
+        for a in payload.assignments
+    ]
+    lines += [
+        f"• Remember “{n.nickname}” for {names.person(n.person_id)}" for n in payload.nicknames
+    ]
+    count = len(payload.assignments)
+    return ProposalText(
+        title=f"{names.ministry(payload.ministry_id)} roster "
+        f"({count} assignment{'s' if count != 1 else ''})",
+        summary="\n".join(lines),
     )
 
 
