@@ -44,8 +44,8 @@ The MVP runs on free hosting with synthetic data only (ADR 0002): the Angular ap
 
 1. **Push** the repo to GitHub.
 2. **Render:** New → Blueprint → pick the repo. `render.yaml` creates `shepherd-db` (free Postgres) and `shepherd-api` (Docker). When asked for the `AZURE_OPENAI_*` values, paste them or leave them empty: without them, typed Ask Shepherd questions fall back to the suggested ones.
-3. **Check** `https://shepherd-api.onrender.com/health`. The first deploy migrates and seeds the database.
-4. **If Render gave the API another address,** change the `/api` rewrite in `frontend/vercel.json` to it and push.
+3. **Check** `https://shepherd-api-9wtg.onrender.com/health`. The first deploy migrates and seeds the database.
+4. **Check the address Render gave the API.** Service names are shared by all Render users, so it usually gets a suffix (here `shepherd-api-9wtg`). The `/api` rewrite in `frontend/vercel.json` must point at exactly that address; a wrong one can reach someone else's service.
 5. **Vercel:** Add New → Project → import the repo, set **Root Directory** to `frontend`, deploy. `vercel.json` has the build command, the output folder and the rewrite, so no other setting is needed.
 
 Open the Vercel URL: the "Who's leading today?" page has **Reset demo data**, which puts the fictional data back with the demo week starting the coming Sunday.

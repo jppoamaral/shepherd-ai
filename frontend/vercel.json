@@ -5,7 +5,7 @@
   "buildCommand": "npm run build:demo",
   "outputDirectory": "dist/shepherd-web/browser",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://shepherd-api.onrender.com/:path*" },
+    { "source": "/api/:path*", "destination": "https://shepherd-api-9wtg.onrender.com/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
