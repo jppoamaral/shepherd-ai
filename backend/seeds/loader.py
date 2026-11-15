@@ -154,6 +154,10 @@ def load_church(session: Session, spec: ChurchSeed, today: date) -> tuple[Church
                 person_id=person.id,
                 ministry_id=ministries[ministry_name].id,
                 status_since=joined,
+                last_served=demo_sunday(today)
+                - timedelta(weeks=p.last_served_weeks_ago[ministry_name])
+                if ministry_name in p.last_served_weeks_ago
+                else None,
             )
             session.add(membership)
             session.flush()

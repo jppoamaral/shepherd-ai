@@ -162,12 +162,14 @@ def grace_community() -> ChurchSeed:
             ),
             PersonSeed("rachel", "Rachel Turner", skills={KIDS: {"Helper": NEW}}),
             # A veteran helper who can't make the demo Sunday: Ask Shepherd says it left her
-            # out when finding cover for Anna (it never knows or says why).
+            # out when finding cover for Anna (it never knows or says why). She last served
+            # seven weeks ago, past Grace's six, so Sarah is asked if she's still on the team.
             PersonSeed(
                 "olivia",
                 "Olivia Grant",
                 skills={KIDS: {"Helper": VET}},
                 blockouts=[BlockoutSeed(0, 0, from_demo_sunday=True)],
+                last_served_weeks_ago={KIDS: 7},
             ),
             PersonSeed(
                 "emily",

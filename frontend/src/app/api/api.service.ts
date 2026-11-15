@@ -60,6 +60,14 @@ export class ApiService {
     return this.http.get<Suggestion>(`${this.base}/churches/${churchId}/ministries/${ministryId}/suggestion`);
   }
 
+  /** Answer "still on the team?" on an absence check-in. Membership never changes. */
+  answerCheckIn(churchId: string, findingId: string, personId: string, answer: 'still_here' | 'later'): Observable<void> {
+    return this.http.post<void>(`${this.base}/churches/${churchId}/findings/${findingId}/answer`, {
+      person_id: personId,
+      answer,
+    });
+  }
+
   /** What approving this roster would newly flag. Saves nothing. */
   checkSuggestion(
     churchId: string,

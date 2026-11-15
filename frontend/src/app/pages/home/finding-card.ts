@@ -6,7 +6,8 @@ import { Icon } from '../../ui/icon';
 
 const EXPERIENCE: Record<string, string> = { new: 'New', experienced: 'Experienced', veteran: 'Veteran' };
 
-/** One thing the checks found this week: a shared volunteer, someone rostered while away, someone serving a lot, an open slot. */
+/** One thing the checks found this week: a shared volunteer, someone rostered while away, someone serving a lot,
+ * an open slot, someone who hasn't served for a while. */
 @Component({
   selector: 'sh-finding-card',
   imports: [RouterLink, Icon],
@@ -43,6 +44,26 @@ const EXPERIENCE: Record<string, string> = { new: 'New', experienced: 'Experienc
           </div>
         </article>
       }
+      @case ('absent') {
+        <article class="sh-card">
+          <div class="sh-brief-head">
+            <span class="sh-tag sh-tag--soft"><sh-icon name="users" />Check-in</span>
+            <span class="sh-cap">Needs you</span>
+          </div>
+          <h3>{{ item().text }} Still on the team?</h3>
+          <div class="sh-actions">
+            <button type="button" class="sh-btn sh-btn--primary" [disabled]="busy()" (click)="answer.emit('still_here')">
+              Yes, still on the team
+            </button>
+            <button type="button" class="sh-btn sh-btn--quiet" [disabled]="busy()" (click)="answer.emit('later')">
+              Ask me later
+            </button>
+          </div>
+          <div class="sh-note">
+            <sh-icon name="lock" />Shepherd won't contact {{ item().people[0].split(' ')[0] }} or change the team.
+          </div>
+        </article>
+      }
       @case ('load') {
         <article class="sh-card">
           <div class="sh-brief-head">
@@ -50,7 +71,7 @@ const EXPERIENCE: Record<string, string> = { new: 'New', experienced: 'Experienc
             <span class="sh-cap">No action needed</span>
           </div>
           <h3>{{ split()[0] }}.</h3>
-          <p>{{ split()[1] }} It may be worth a check-in before you ask again.</p>
+          <p>{{ split()[1] }}</p>
         </article>
       }
       @case ('below_minimum') {
@@ -90,6 +111,8 @@ export class FindingCard {
   readonly busy = input(false);
   /** Fill the open slot with the person Shepherd found free. */
   readonly fill = output<GapFill>();
+  /** The approver's answer to an absence check-in. */
+  readonly answer = output<'still_here' | 'later'>();
 
   protected readonly experience = EXPERIENCE;
 

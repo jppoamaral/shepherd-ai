@@ -35,26 +35,11 @@
 
     @for (item of items(); track item.finding_id) {
       <sh-finding-card [item]="item" [canApprove]="canApprove()" [approverNames]="approverNames()"
-                       [busy]="busy() === item.finding_id" (fill)="fill(item, $event)" />
+                       [busy]="busy() === item.finding_id" (fill)="fill(item, $event)"
+                       (answer)="answerCheckIn(item, $event)" />
     }
 
-    <!-- SAMPLE: absence check-in (not produced by the backend yet) -->
-    @if (showSamples() && !checkInAnswered()) {
-      <article class="sh-card">
-        <div class="sh-brief-head">
-          <span class="sh-tag sh-tag--soft"><sh-icon name="users" />Check-in</span>
-          <span class="sh-cap">Needs you</span>
-        </div>
-        <h3>Hannah hasn't served since Sept 7. Still on the team?</h3>
-        <div class="sh-actions">
-          <button type="button" class="sh-btn sh-btn--primary" (click)="checkInAnswered.set(true)">Yes</button>
-          <button type="button" class="sh-btn sh-btn--quiet" (click)="checkInAnswered.set(true)">Ask me later</button>
-        </div>
-        <div class="sh-note"><sh-icon name="lock" />Shepherd won't contact Hannah.</div>
-      </article>
-    }
-
-    @if (!loading() && items().length === 0 && !(showSamples() && !checkInAnswered())) {
+    @if (!loading() && items().length === 0) {
       <div class="sh-card sh-state">
         <span class="sh-spark"><sh-icon name="check" /></span>
         <h3>All clear for this week</h3>

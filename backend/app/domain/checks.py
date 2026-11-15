@@ -2,7 +2,7 @@
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from app.domain.enums import FindingType, Period
@@ -51,6 +51,20 @@ class RoleNeed:
     local_start: datetime
     minimum: int
     filled: int
+
+
+@dataclass(frozen=True)
+class MemberFact:
+    """One active team member, for the absence check."""
+
+    membership_id: uuid.UUID
+    person_id: uuid.UUID
+    person_name: str
+    ministry_id: uuid.UUID
+    ministry_name: str
+    last_served: date | None  # church-local; None = no serving on record yet
+    asked_on: date | None  # when the approver last chose "Ask me later"
+    upcoming: bool  # already on a coming roster for this ministry
 
 
 @dataclass(frozen=True)

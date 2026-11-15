@@ -52,7 +52,7 @@ def run_checks(session: Session, church_id: uuid.UUID, start: date, end: date) -
     tz = ZoneInfo(church.timezone)
     facts = _assignment_facts(session, church_id, tz, start - CONTEXT, end + CONTEXT)
     issues = _issues(session, church, tz, facts, start, end)
-    recipients = _recipients(session, church, issues)
+    recipients = recipients_for(session, church, issues)
 
     existing = {
         f.details.get("key"): f
@@ -299,7 +299,7 @@ def _role_needs(
     return needs
 
 
-def _recipients(
+def recipients_for(
     session: Session, church: Church, issues: list[Issue]
 ) -> dict[str, list[uuid.UUID]]:
     """Warning routing (set in onboarding) applied to each involved ministry's leaders."""

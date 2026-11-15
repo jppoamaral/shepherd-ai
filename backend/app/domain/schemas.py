@@ -445,6 +445,13 @@ class SuggestionApprove(BaseModel):
     assignments: list[SuggestedAssignment] = Field(min_length=1)
 
 
+class AbsenceAnswer(BaseModel):
+    """The approver's answer to "still on the team?". Neither changes membership."""
+
+    person_id: uuid.UUID
+    answer: Literal["still_here", "later"]
+
+
 class CheckWarning(BaseModel):
     """Something the checks would flag if this roster were approved. Never a block."""
 

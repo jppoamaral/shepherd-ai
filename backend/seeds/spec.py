@@ -81,6 +81,9 @@ class PersonSeed:
     blockouts: list[BlockoutSeed] = field(default_factory=list)
     availability: list[AvailabilitySeed] = field(default_factory=list)  # leaders only
     opted_in: bool = True
+    # ministry name -> weeks before the demo Sunday they last served there (roster history
+    # from before Shepherd, as an approved profile would give it)
+    last_served_weeks_ago: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

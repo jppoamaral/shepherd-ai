@@ -59,17 +59,10 @@ export class HomePage {
     this.notices().filter((n) => n.ministry_id === this.session.ministryId()),
   );
 
-  // SAMPLE: the absence check-in isn't
-  // produced by the backend yet (later milestones). They're shown with fixed sample content
-  // for the Kids ministry demo persona, as agreed for the presentation.
-  protected readonly showSamples = computed(() => this.session.ministry()?.ministry === 'Kids');
-  protected readonly checkInAnswered = signal(false);
-
   protected readonly needsYou = computed(
     () =>
       this.items().filter((i) => i.type !== 'load').length +
-      this.myNotices().filter(noticeNeedsLeader).length +
-      (this.showSamples() && !this.checkInAnswered() ? 1 : 0),
+      this.myNotices().filter(noticeNeedsLeader).length,
   );
   protected readonly today = computed(() => longDate(churchToday(this.session.state()?.timezone ?? 'UTC')));
   protected readonly approvalCount = computed(
@@ -125,6 +118,22 @@ export class HomePage {
           this.queueMessage.set(e?.error?.detail ?? "That didn't work. Please try again.");
         },
       });
+  }
+
+  /** "Still on the team?": yes settles it, later asks again in four weeks. The team never changes. */
+  protected answerCheckIn(item: BriefingItem, answer: 'still_here' | 'later'): void {
+    this.busy.set(item.finding_id);
+    this.queueMessage.set('');
+    this.api.answerCheckIn(this.session.churchId(), item.finding_id, this.session.personId(), answer).subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.briefing.update((b) => b && { ...b, items: b.items.filter((i) => i.finding_id !== item.finding_id) });
+      },
+      error: (e) => {
+        this.busy.set(null);
+        this.queueMessage.set(e?.error?.detail ?? "That didn't work. Please try again.");
+      },
+    });
   }
 
   /** Someone said yes when asked: put them in (a swap if it was someone's place), through
