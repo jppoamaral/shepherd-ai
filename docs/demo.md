@@ -2,18 +2,47 @@
 
 Synthetic data only. No login yet: the app picks "who am I" from the leaders list.
 
-## Run it
+## Where it runs
+
+**Online (the MVP demo):** https://shepherd-ai-jade.vercel.app. The Angular app is on Vercel;
+the API and database are on Render at `https://shepherd-api-9wtg.onrender.com` (ADR 0002).
+The README section "Online demo (Vercel + Render)" has the setup steps.
+
+**Locally:**
 
 ```
 docker compose down -v && docker compose up -d --build   # fresh demo data + API on :8000
 cd frontend && npm install && npm start                  # app on http://localhost:4300
 ```
 
-Reset the data (first command) before presenting: approving, recording a huddle or
-deleting a memory changes the record. Port 4300 is used because 4200 belongs to another
+Locally, the first command is the reset. Port 4300 is used because 4200 belongs to another
 local project; CORS allows both.
 
-Seeds are relative to today. The **demo week** starts at the first upcoming Sunday; in it, at **Grace Community**:
+## Before you present
+
+1. **Wake the server.** Open the site about 2 minutes before. The free API sleeps after 15
+   minutes idle, and the first load then takes about a minute ("Waking up Shepherd…").
+2. **Reset the data.** On "Who's leading today?", tap **Reset demo data** and wait for "Demo
+   data is fresh". Approving, sending, a huddle or deleting a memory all change the record, so
+   reset before every run.
+3. **Try one typed question** in Ask Shepherd, for example "anyone serving too much lately?".
+   If it fails, the Azure keys on Render need fixing; present with the suggested questions
+   only, which never use the model.
+4. **Open two screens.** A desktop browser for the leader, and a phone on the same site for the
+   volunteer: "See what volunteers get" on "Who's leading today?", then Anna Parker. On one
+   screen, use **Show a volunteer's chat (demo)** at the bottom of the sidebar.
+5. **Check the day.**
+   - Monday to Saturday the demo week is the coming Sunday to Saturday, and everything below
+     works as written.
+   - On a **Sunday** the demo week starts that same day. Once the 9:30 service has passed,
+     the reminder and huddle steps lose their point, so present from a Monday on if you can.
+   - **The free database expires 30 days after it was created.** If the site can't load its
+     data, recreate the database on Render (README).
+
+## The stories in the data
+
+Seeds are relative to each church's own date. The **demo week** starts at the first upcoming
+Sunday; in it, at **Grace Community**:
 
 | Story | What the seed sets up | Who is warned |
 | --- | --- | --- |
@@ -31,18 +60,17 @@ Seeds are relative to today. The **demo week** starts at the first upcoming Sund
 
 ## Demos
 
-Each demo starts from fresh data (reset first) with **Sarah Collins** picked on "Who's leading
-today?".
+Run them in this order, as one continuous story with **Sarah Collins** picked on "Who's
+leading today?": **Demo 1, Demo 2, Demo 3.** All three use Anna Parker's Sunday double
+booking, and each of these takes her off the Kids roster: Resolve in Demo 1 (so Undo it), **Put
+Caleb in for Anna** in Demo 2 (so stop at Caleb's Yes), and Anna declining in Demo 3 (the
+planned ending). After that, Ask Shepherd no longer offers "Who can take Anna's place?" and
+Sarah's reminders leave her out, so reset before the next run. Anna's Worship place is
+untouched either way: as **David Morales**, sending Worship reminders still reaches her chat.
 
-**Order matters: Demos 1, 2 and 4 all use Anna Parker's Sunday double booking.** Resolve in
-Demo 1, **Put Caleb in for Anna** in Demo 2, or Anna declining in Demo 4, takes her off the
-Kids roster. In a continuous run, stop Demo 2 at Caleb's Yes (or skip Put in) until the end. After that, Ask Shepherd no
-longer offers "Who can take Anna's place?", and Sarah's reminders leave her out. For one
-continuous run, do **Demo 2, then Demo 3** (Resolve, then Undo, leaves the record as it was),
-**then Demo 4**. Reset before **Demo 1**. Anna's Worship place is untouched either way: as
-**David Morales**, sending Worship reminders still reaches her chat. Dates below assume the demo Sunday is Oct 11; the app always shows the real dates.
-Generated volunteers' names (Caleb Baker, Anna Peterson, …) can differ from these notes, and
-that's fine: every answer comes from the data.
+Dates below assume the demo Sunday is Oct 11; the app always shows the real dates. Generated
+volunteers' names (Caleb Baker, Anna Peterson, …) can differ from these notes, and that's
+fine: every answer comes from the data.
 
 ### Demo 1: Sarah's week, start to finish (5 minutes)
 
@@ -50,27 +78,35 @@ The main story: one double booking found days ahead, settled by the leaders, not
 without approval.
 
 1. **Home** (Kids): "2 things need you this week". The **shared volunteer** card (Anna Parker
-   on Kids and Worship at the same 9:30 service) and the **good to know** card (Anna serving 4
-   times, above her preferred 2). Point out "Shepherd won't move anyone" and the approval
-   queue on the right.
+   on Kids and Worship at the same 9:30 service), the **good to know** card (Anna serving 4
+   times, above her preferred 2) and the **check-in** card ("Olivia Grant hasn't served with
+   Kids since … Still on the team?"). Point out "Shepherd won't move anyone", "Shepherd won't
+   contact Olivia or change the team", and the approval queue on the right. Leave the
+   check-in unanswered, or tap **Ask me later**: it only quiets the question.
 2. Click **Find a time to talk**. Three Saturday slots that suit both Sarah and David, one
    suggested replacement per side, and "Anna isn't invited. This is a talk between leaders."
 3. Two ways to settle it (pick one live):
    - **Resolve** on the Kids suggestion: one tap puts the suggested helper in Anna's place on
      Kids. "… is in Anna's place. Worship wasn't told." It went through the approval queue and
-     the audit log; nobody was messaged. Show **Undo**, then Resolve again.
+     the audit log; nobody was messaged. Then tap **Undo**, so Anna is back for Demos 2
+     and 3.
    - Or the huddle path: pick a time, **Confirm time**, **Record what you decided**. Shepherd
      moves nobody.
 4. **Rosters**: Shepherd's suggested roster grouped by service, a reason on every line (Emily
    is at 9:30 because she prefers it). Beside it, this week as planned. After Resolve, Anna's
-   Kids place shows the new helper. **Choose this roster**, swap someone, **Approve roster**.
+   Kids place shows the new helper. **Choose this roster** and put one person in two places
+   at the same service, then **Approve roster**: "Before you approve" lists what the checks
+   would flag, with **Approve anyway** and **Keep editing**. A warning never blocks. Tap
+   **Keep editing**, undo the swap, and approve.
 5. **Memory**: confirmed memories by kind; **Remember** "Rachel is ready to lead a class."
    Type a note with a health detail ("she just had surgery"): Shepherd refuses to keep it.
 
 ### Demo 2: Ask Shepherd (2 to 3 minutes)
 
 A leader asks in their own words and gets answers from the record, with the source shown.
-Suggested questions work without the language model; typed questions need the Azure keys.
+Suggested questions work without the language model. Typed questions (steps 4 and 5) need
+the Azure keys on the server: try one before presenting, and skip step 4 if it fails. Step 5
+is refused in code and works either way.
 
 1. Open **Ask Shepherd** (second in the nav). "Hi Sarah. What can I help with?" with
    suggestions built from this week's data.
@@ -93,20 +129,10 @@ Suggested questions work without the language model; typed questions need the Az
    dates, never the reasons." This refusal happens in code, before the model sees the question.
 6. Optional: **Open the huddle** from the answer in step 2 jumps straight into Demo 1's huddle.
 
-### Demo 3: The boundaries, in one minute
+Stop at Caleb's Yes in step 3 if Demo 3 follows: **Put Caleb in for Anna** takes Anna off the
+Kids roster, and Demo 3 starts with her reminder.
 
-For a question like "what stops it from overstepping?":
-
-1. **Ask Shepherd**: "Is Emily sick?" is refused (health), and "Why is Olivia taking time
-   off?" is refused (personal reasons).
-2. **Memory**: a health note is refused before it becomes a suggestion.
-3. **Huddle → Resolve → Undo**: every change to the record is a proposal a leader approves,
-   with an audit entry; the other leader and the volunteer are never messaged.
-4. **Switch leader** to David Morales: he sees only Worship's side, plus both double bookings
-   that involve Worship (Anna on Sunday, Hannah on Wednesday). Mike Harris (Media and
-   Hospitality) sees only Hannah's. Ask Shepherd as David answers about Worship's team only.
-
-### Demo 4: the volunteer's side (3 minutes)
+### Demo 3: the volunteer's side (3 minutes)
 
 Volunteers never use the app; in real life this is their Telegram chat with Shepherd. The
 simulator stands in for Telegram. Open it beside Sarah's Home: on desktop, **Show a
@@ -138,9 +164,22 @@ open "See what volunteers get" on "Who's leading today?" in a second window.
      will confirm Wed Oct 14 with you."), as on Hannah's phone. An unclear message gets
      different wording the second time, with buttons, so the bot never repeats itself.
 
-Reset before presenting. Anna's own messages are kept in the browser per person, and a
+Anna's own messages are kept in the browser per person, and a
 reset gives everyone new ids, so her phone starts clean; **Clear Anna's side of this demo
 chat** under the phone is there for a rerun without a reset.
+
+### Backup: the boundaries, in one minute
+
+For a question like "what stops it from overstepping?":
+
+1. **Ask Shepherd**: "Is Emily sick?" is refused (health), and "Why is Olivia taking time
+   off?" is refused (personal reasons).
+2. **Memory**: a health note is refused before it becomes a suggestion.
+3. **Huddle → Resolve → Undo**: every change to the record is a proposal a leader approves,
+   with an audit entry; the other leader and the volunteer are never messaged.
+4. **Switch leader** to David Morales: he sees only Worship's side, plus both double bookings
+   that involve Worship (Anna on Sunday, Hannah on Wednesday). Mike Harris (Media and
+   Hospitality) sees only Hannah's. Ask Shepherd as David answers about Worship's team only.
 
 ### What is sample content
 
@@ -152,11 +191,11 @@ out anyone already reminded.
 
 ## API map for the frontend
 
-Base URL `http://localhost:8000`. CORS allows `http://localhost:4300` (the app) and `:4200`. OpenAPI is at `/openapi.json`, and an interactive version at `/docs`.
+Base URL `http://localhost:8000` locally, `/api` online (Vercel forwards it to Render). CORS allows `http://localhost:4300` (the app) and `:4200`. OpenAPI is at `/openapi.json`, and an interactive version at `/docs`.
 
 | Screen | Calls |
 | --- | --- |
-| Who am I | `GET /churches`, `GET /churches/{cid}/leaders` |
+| Who am I | `GET /churches`, `GET /churches/{cid}/leaders`, `POST /demo/reset` (only with `DEMO_MODE=true`) |
 | Weekly briefing | `GET /churches/{cid}/leaders/{person_id}/briefing?start=YYYY-MM-DD`, `POST /churches/{cid}/findings/{finding_id}/answer {person_id, answer: still_here \| later}` (the absence check-in) |
 | Rosters | `GET /churches/{cid}/ministries/{mid}/suggestion`, `POST …/suggestion/check {person_id, assignments}` (what the edited roster would newly flag; saves nothing), `POST …/suggestion/approve {person_id, assignments}`, `GET /churches/{cid}/ministries/{mid}/roster?start=&end=` |
 | Conflict huddle | `POST /churches/{cid}/findings/{finding_id}/huddle {person_id}`, `GET /churches/{cid}/huddles/{id}`, `POST …/huddles/{id}/choose {person_id, slot_id}`, `POST …/huddles/{id}/resolve {person_id, outcome}`, `POST …/huddles/{id}/accept-replacement {person_id, ministry_id}` (Resolve), `POST …/huddles/{id}/undo-replacement {person_id}` |
