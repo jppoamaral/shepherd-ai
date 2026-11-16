@@ -1,6 +1,5 @@
 """Demo-only endpoints. Off unless `DEMO_MODE=true` (synthetic data only)."""
 
-from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -28,6 +27,6 @@ def reset(
     """Reload the synthetic seeds, so the demo week is the coming one and nothing is left over."""
     if not enabled:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
-    churches = reset_demo(session, today or date.today())
+    churches = reset_demo(session, today)
     session.commit()
     return DemoResetOut(churches=churches)
