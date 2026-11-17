@@ -1,6 +1,7 @@
 """MVP deploy pieces (ADR 0002): database URL, the in-process scheduler, demo reset."""
 
 from collections.abc import Iterator
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +14,7 @@ from app.config import Settings
 from app.db.models import Assignment, AuditLog, Church, Person
 from app.main import app
 from app.scheduler import build_scheduler
+from seeds import local_today
 from tests.conftest import GRACE, RIVERSIDE
 
 
@@ -94,3 +96,11 @@ def test_the_audit_log_is_append_only_again_after_a_reset(
     ):
         with pytest.raises(DBAPIError, match="append-only"), session.begin_nested():
             session.execute(text(statement))
+
+
+def test_seeds_use_the_church_local_date_not_the_servers() -> None:
+    # Sunday evening in Chicago is already Monday in UTC. Seeding for Monday would put the
+    # demo week a whole week ahead of what Grace's leaders see as "this week".
+    now = datetime(2026, 11, 16, 2, 30, tzinfo=UTC)
+    assert local_today("America/Chicago", now) == date(2026, 11, 15)
+    assert local_today("UTC", now) == date(2026, 11, 16)

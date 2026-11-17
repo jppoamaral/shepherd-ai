@@ -21,8 +21,11 @@ from app.worker import run_nightly
 from seeds import seed_all
 
 
-def reset_demo(session: Session, today: date) -> list[str]:
-    """Empty the database, reload the seeds for `today` and run the nightly job. No commit."""
+def reset_demo(session: Session, today: date | None = None) -> list[str]:
+    """Empty the database, reload the seeds and run the nightly job. No commit.
+
+    `today` is for tests; without it each church is seeded for its own local date.
+    """
     tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
     session.execute(text("ALTER TABLE audit_log DISABLE TRIGGER USER"))
     session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))

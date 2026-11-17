@@ -308,7 +308,16 @@ The steps as planned:
 - Reset works.
 - Demo 1 runs online.
 
-## Phase 4: Demo readiness
+## Phase 4: Demo readiness — guide and one fix done 2026-11-15; a weekday walk-through still to do
+
+- **Live site:** https://shepherd-ai-jade.vercel.app (API: `https://shepherd-api-9wtg.onrender.com`).
+- **`docs/demo.md`** is rewritten for the online site, with a "Before you present" checklist. The demos are renumbered: 1 Sarah's week, 2 Ask Shepherd, 3 the volunteer's side, then the boundaries as backup.
+- **Fixed, found in the walk-through:** the seeds and the reset used the server's date (UTC). On a Sunday evening in the US that is already Monday, so the demo week landed a week ahead and Home was nearly empty. `seeds.seed_all` now seeds each church for its own local date.
+- **Walked online so far:** the picker, Sarah's Home, sending reminders into the volunteer chat, the reset, Ask Shepherd's suggestions, and approving a roster.
+- **Still to do:** walk Demos 1 to 3 end to end online on a weekday (huddle, Resolve and Undo, Anna declining, Put in). On a Sunday after the 9:30 service these steps lose their point, which the checklist says.
+- **Open, left to the user:** typed Ask questions return 500 on Render until the Azure values there are fixed; the suggested questions don't use the model.
+
+The steps as planned:
 
 - **Rewrite `docs/demo.md` for the online URL**, in this order:
   1. Reset.
